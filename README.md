@@ -1,4 +1,4 @@
-# 🗳️ Horizonte Eleitoral · Sistema de Projeção Preditiva 2026
+# Horizonte Eleitoral · Sistema de Projeção Preditiva 2026
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Package Manager: uv](https://img.shields.io/badge/package_manager-uv-purple.svg)](https://docs.astral.sh/uv/)
@@ -13,7 +13,7 @@ Combinando **Regressão Multinível com Pós-Estratificação (MRP)**, **encolhi
 
 ---
 
-## 📌 Por que o Horizonte Eleitoral é Necessário?
+## Por que o Horizonte Eleitoral é Necessário?
 
 Na noite da eleição, o totalizador bruto do TSE não reflete a realidade do resultado final nas primeiras horas:
 - Estados do Sul, Centro-Oeste e o interior paulista transmitem suas urnas com velocidade muito superior à média nacional.
@@ -24,21 +24,21 @@ O **Horizonte Eleitoral** resolve este desafio: em vez de assumir que o país vo
 
 ---
 
-## ✨ Principais Capacidades
+## Principais Capacidades
 
-- 🧠 **Modelo Hierárquico Bayesiano V2 (MRP Adaptativo):** Modelação em 4 níveis (Nacional ponderado pelo censo $\rightarrow$ 5 Macro-regiões $\rightarrow$ 27 UFs $\rightarrow$ 5.570+ Municípios).
-- 📈 **Índice de Elasticidade Municipal (2018–2022):** Modula o fator de encolhimento bayesiano (*shrinkage*). Municípios com alta volatilidade histórica aprendem mais rápido da eleição atual; municípios estáveis mantêm sólida proteção contra ruído estatístico.
-- 🎯 **Acurácia Validada em 499.206 Seções Reais:** Validado contra 100% da base oficial de 2026. Apenas a **2,0% do eleitorado apurado**, o modelo projetou **PT 45,46% e PL 46,53%** (o resultado final oficial cravou **45,16% vs 47,03%** — um erro de apenas **0,30 pp**).
-- 🎲 **Simulação de Monte Carlo com Intervalos de Credibilidade de 90%:** 2.000 sorteios estocásticos vetorizados propagando incertezas macro e micro, gerando faixas preditivas confiáveis $[q_{05}, q_{95}]$ e o cálculo contínuo da **Probabilidade de 2º Turno**.
-- ⚡ **Catálogo Colunar Parquet & DuckDB:** Carga de meio milhão de seções em menos de 0,8 segundo e suporte a consultas SQL analíticas em memória instantâneas.
-- 🖥️ **Painel Visual Interativo Streamlit:** Duas abas especializadas:
+- **Modelo Hierárquico Bayesiano V2 (MRP Adaptativo):** Modelação em 4 níveis (Nacional ponderado pelo censo $\rightarrow$ 5 Macro-regiões $\rightarrow$ 27 UFs $\rightarrow$ 5.570+ Municípios).
+- **Índice de Elasticidade Municipal (2018–2022):** Modula o fator de encolhimento bayesiano (*shrinkage*). Municípios com alta volatilidade histórica aprendem mais rápido da eleição atual; municípios estáveis mantêm sólida proteção contra ruído estatístico.
+- **Acurácia Validada em 499.206 Seções Reais:** Validado contra 100% da base oficial de 2026. Apenas a **2,0% do eleitorado apurado**, o modelo projetou **PT 45,46% e PL 46,53%** (o resultado final oficial cravou **45,16% vs 47,03%** — um erro de apenas **0,30 pp**).
+- **Simulação de Monte Carlo com Intervalos de Credibilidade de 90%:** 2.000 sorteios estocásticos vetorizados propagando incertezas macro e micro, gerando faixas preditivas confiáveis $[q_{05}, q_{95}]$ e o cálculo contínuo da **Probabilidade de 2º Turno**.
+- **Catálogo Colunar Parquet & DuckDB:** Carga de meio milhão de seções em menos de 0,8 segundo e suporte a consultas SQL analíticas em memória instantâneas.
+- **Painel Visual Interativo Streamlit:** Duas abas especializadas:
   - **Aba 1 (Replay & Validação 1º Turno):** Linha do tempo navegável (1% a 100%), gráficos Altair com faixas de incerteza, cards de candidatos, tabelas estaduais e model card metodológico.
   - **Aba 2 (Tempo Real 2º Turno Oficial):** Conexão assíncrona oficial à API do TSE com suporte a polling inteligente (ETag 304), disparos manuais e simulação de novas ondas.
-- 🔒 **Integridade e Governança Imutável:** Cofre de dados brutos com verificação SHA-256, reconciliação estrita (*Failure-Stop* contra dados dessincronizados) e gravação atômica (`tempfile` + `os.replace`).
+- **Integridade e Governança Imutável:** Cofre de dados brutos com verificação SHA-256, reconciliação estrita (*Failure-Stop* contra dados dessincronizados) e gravação atômica (`tempfile` + `os.replace`).
 
 ---
 
-## 🚀 Início Rápido
+## Início Rápido
 
 ### Pré-requisitos
 - **Python 3.12 ou superior**
@@ -62,7 +62,7 @@ O navegador abrirá automaticamente em `http://localhost:8501`, disponibilizando
 
 ---
 
-## 💻 Interface de Linha de Comando (CLI)
+## Interface de Linha de Comando (CLI)
 
 O executável de linha de comando `horizonte-eleitoral` disponibiliza diversas rotinas analíticas e operacionais:
 
@@ -106,7 +106,7 @@ uv run horizonte-eleitoral --poll-tse-live --ignore-time-gate
 
 ---
 
-## 🧪 Qualidade de Código e Testes Automatizados
+## Qualidade de Código e Testes Automatizados
 
 O projeto mantém padrões estritos de engenharia de software com 100% de conformidade:
 
@@ -127,7 +127,7 @@ uv run ruff check .
 
 ---
 
-## 📁 Estrutura do Repositório
+## Estrutura do Repositório
 
 ```text
 horizonte_eleitoral/
@@ -171,19 +171,19 @@ horizonte_eleitoral/
 
 ---
 
-## 📚 Documentação Técnica Completa
+## Documentação Técnica Completa
 
 Para aprofundar-se em qualquer aspecto técnico do projeto, consulte os documentos dedicados em [`docs/`](docs/):
 
-- 🗺️ **[Mapa de Arquitetura e Componentes (`docs/ARQUITETURA.md`)](docs/ARQUITETURA.md):** Fluxo de dados, fronteiras de módulo e tabela de atalhos rápidos.
-- 📐 **[Metodologia Estatística e Preditiva (`docs/METODOLOGIA_ESTATISTICA.md`)](docs/METODOLOGIA_ESTATISTICA.md):** Detalhamento matemático dos baselines, do modelo hierárquico V2 com elasticidade municipal, do algoritmo de Monte Carlo e dos resultados em 499k seções.
-- 🏛️ **[Decisões de Engenharia e ADRs (`docs/DECISOES_DE_ENGENHARIA.md`)](docs/DECISOES_DE_ENGENHARIA.md):** Registros formais de decisão (ADR 001 a ADR 007) justificando o cofre imutável, a publicação atômica, o uso de Parquet/DuckDB e as políticas de coleta.
-- 📊 **[Status do Projeto e Governança (`docs/STATUS_E_GOVERNANCA.md`)](docs/STATUS_E_GOVERNANCA.md):** Indicadores de qualidade, Zona de Exclusão (*Delete-Zone*) e diretrizes de desenvolvimento.
-- 📜 **[Constituição de Agentes (`AGENTS.md`)](AGENTS.md):** Invariantes de desenvolvimento e conduta para agentes e contribuidores.
+- **[Mapa de Arquitetura e Componentes (`docs/ARQUITETURA.md`)](docs/ARQUITETURA.md):** Fluxo de dados, fronteiras de módulo e tabela de atalhos rápidos.
+- **[Metodologia Estatística e Preditiva (`docs/METODOLOGIA_ESTATISTICA.md`)](docs/METODOLOGIA_ESTATISTICA.md):** Detalhamento matemático dos baselines, do modelo hierárquico V2 com elasticidade municipal, do algoritmo de Monte Carlo e dos resultados em 499k seções.
+- **[Decisões de Engenharia e ADRs (`docs/DECISOES_DE_ENGENHARIA.md`)](docs/DECISOES_DE_ENGENHARIA.md):** Registros formais de decisão (ADR 001 a ADR 007) justificando o cofre imutável, a publicação atômica, o uso de Parquet/DuckDB e as políticas de coleta.
+- **[Status do Projeto e Governança (`docs/STATUS_E_GOVERNANCA.md`)](docs/STATUS_E_GOVERNANCA.md):** Indicadores de qualidade, Zona de Exclusão (*Delete-Zone*) e diretrizes de desenvolvimento.
+- **[Constituição de Agentes (`AGENTS.md`)](AGENTS.md):** Invariantes de desenvolvimento e conduta para agentes e contribuidores.
 
 ---
 
-## ⚖️ Aviso Legal e Ético
+## Aviso Legal e Ético
 
 1. **A projeção preditiva não é apuração oficial:** A única autoridade legal com prerrogativa de homologar resultados eleitorais no Brasil é o **Tribunal Superior Eleitoral (TSE)**. O Horizonte Eleitoral é uma ferramenta independente de modelagem estatística, ciência de dados e pesquisa acadêmica/jornalística baseada estritamente em dados públicos.
 2. **Uso Cidadão da Infraestrutura:** O sistema segue rigorosas políticas de limitação de taxa e cabeçalhos condicionais (`HTTP 304`), gerando impacto de rede praticamente nulo nos servidores de divulgação de resultados.

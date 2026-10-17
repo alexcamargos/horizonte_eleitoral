@@ -26,18 +26,18 @@ horizonte_eleitoral/
 
 ## Guia de Leitura por Perfil
 
-### 🧑‍💻 Para Desenvolvedores de Software e Engenheiros de Dados
+### Para Desenvolvedores de Software e Engenheiros de Dados
 1. Comece pelo [README.md principal](../README.md) para configurar o ambiente com `uv` e rodar a suíte de testes.
 2. Leia o [Mapa de Arquitetura](ARQUITETURA.md) para compreender as fronteiras entre os pacotes (`domain`, `ingestion`, `normalization`, `reconciliation`, `storage`, `publishing`, `api`, `dashboard`).
 3. Consulte as [Decisões de Engenharia (ADRs)](DECISOES_DE_ENGENHARIA.md) para entender por que o cofre é imutável, como a publicação atômica opera e como o Apache Parquet e o DuckDB foram introduzidos.
 4. Consulte [Status e Governança](STATUS_E_GOVERNANCA.md) antes de submeter código para verificar padrões de qualidade e convenções de teste.
 
-### 📊 Para Estatísticos, Cientistas de Dados e Pesquisadores
+### Para Estatísticos, Cientistas de Dados e Pesquisadores
 1. Leia a [Metodologia Estatística](METODOLOGIA_ESTATISTICA.md), que detalha o fenômeno do viés geográfico da apuração no Brasil, os 4 baselines de referência, a formulação matemática do modelo hierárquico bayesiano (MRP), o índice de elasticidade municipal multi-ciclo (2018–2022) e a simulação de Monte Carlo.
 2. Explore a seção de resultados empíricos em [Metodologia Estatística](METODOLOGIA_ESTATISTICA.md#6-resultados-empíricos-na-eleição-de-2026-499206-seções), com o comparativo de precisão entre o Modelo V1 e o Modelo V2 em 100% da base real de 2026.
 3. Consulte o [ADR 005 em Decisões de Engenharia](DECISOES_DE_ENGENHARIA.md#adr-005-substituição-do-modelo-hierárquico-v1-pelo-modelo-v2-com-elasticidade-municipal).
 
-### 📰 Para Jornalistas de Dados e Operadores Eleitorais
+### Para Jornalistas de Dados e Operadores Eleitorais
 1. Leia o [README.md principal](../README.md) para entender por que a apuração preliminar do TSE distorce a realidade política nos momentos iniciais (efeito "virada de apuração").
 2. Execute o painel interativo Streamlit (`uv run horizonte-eleitoral --dashboard`) para navegar na linha do tempo interativa e visualizar as faixas preditivas de 90%.
 3. Consulte a seção de [Interpretação Responsável em Metodologia Estatística](METODOLOGIA_ESTATISTICA.md#7-diretrizes-de-comunicação-e-ética-editorial).

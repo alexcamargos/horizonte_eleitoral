@@ -1,0 +1,11 @@
+{
+  "artifact_type": "EA20",
+  "collected_at": "2026-10-04T20:01:00+00:00",
+  "election_id": "br-2026-presidente-1",
+  "headers": [
+    ["etag", "fixture-v1"],
+    ["last-modified", "Sat, 04 Oct 2026 20:00:00 GMT"]
+  ],
+  "http_status": 200,
+  "source_url": "https://www.tse.jus.br/resultados/ea20.json"
+}

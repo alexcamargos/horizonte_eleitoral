@@ -1,12 +1,17 @@
 """Testes unitarios para os quatro modelos de referencia (baselines)."""
 
-from horizonte_eleitoral.models.base import PendingSection, SectionObservation
+from collections.abc import Callable
+
+import pytest
+
+from horizonte_eleitoral.models.base import ForecastModel, PendingSection, SectionObservation
 from horizonte_eleitoral.models.baselines import (
     HistoricalNoSwingBaseline,
     NationalSwingBaseline,
     RawCountBaseline,
     UFSwingWithShrinkageBaseline,
 )
+from horizonte_eleitoral.models.swing import SwingEstimator
 
 
 def test_raw_count_baseline() -> None:
@@ -132,3 +137,75 @@ def test_uf_swing_with_shrinkage() -> None:
 
     shares = dict(result.projected_shares)
     assert abs(sum(shares.values()) - 1.0) < 1e-4
+
+
+def _self_projection_inputs() -> tuple[list[SectionObservation], list[PendingSection]]:
+    """Monta secoes heterogeneas e as mesmas secoes como pendentes com peso exato.
+
+    Returns:
+        Tupla (observacoes, pendentes) em que cada pendente espera exatamente os
+        votos validos observados da secao correspondente.
+    """
+    specs = [
+        ("SP:1:1", "SP", 1000, ((("PT", 600), ("PL", 300), ("OUTROS", 100))), (0.7, 0.2, 0.1)),
+        ("SP:1:2", "SP", 1000, ((("PT", 250), ("PL", 650), ("OUTROS", 100))), (0.2, 0.7, 0.1)),
+        ("BA:1:1", "BA", 800, ((("PT", 560), ("PL", 180), ("OUTROS", 60))), (0.6, 0.3, 0.1)),
+        ("BA:1:2", "BA", 800, ((("PT", 300), ("PL", 420), ("OUTROS", 80))), (0.3, 0.6, 0.1)),
+    ]
+    obs: list[SectionObservation] = []
+    pending: list[PendingSection] = []
+    for sec_id, uf, valid, votes, (h_pt, h_pl, h_out) in specs:
+        hist = (("PT", h_pt), ("PL", h_pl), ("OUTROS", h_out))
+        obs.append(
+            SectionObservation(
+                section_id=sec_id,
+                state=uf,
+                municipality_code="00001",
+                valid_votes=valid,
+                group_votes=votes,
+                historical_shares=hist,
+            )
+        )
+        pending.append(
+            PendingSection(
+                section_id=f"{sec_id}:espelho",
+                state=uf,
+                municipality_code="00001",
+                electorate=valid,
+                historical_shares=hist,
+                expected_turnout_rate=1.0,
+                expected_valid_rate=1.0,
+            )
+        )
+    return obs, pending
+
+
+@pytest.mark.parametrize(
+    "model_factory",
+    [
+        lambda est: NationalSwingBaseline(pseudo_count=0.0, swing_estimator=est),
+        lambda est: UFSwingWithShrinkageBaseline(
+            pseudo_count=0.0, shrinkage_k=0.0, swing_estimator=est
+        ),
+    ],
+    ids=["baseline_3", "baseline_4"],
+)
+def test_calibrated_swing_reproduces_observed_in_self_projection(
+    model_factory: Callable[[SwingEstimator], ForecastModel],
+) -> None:
+    """Projetar as proprias secoes apuradas deve reproduzir o apurado (sem vies de Jensen).
+
+    Args:
+        model_factory: Fabrica do baseline parametrizada pelo estimador de swing.
+    """
+    obs, pending = _self_projection_inputs()
+
+    calibrated = model_factory(SwingEstimator.CALIBRATED).predict(observations=obs, pending=pending)
+    observed = dict(calibrated.observed_shares)
+    projected = dict(calibrated.projected_shares)
+    for group in ("PT", "PL", "OUTROS"):
+        assert projected[group] == pytest.approx(observed[group], abs=2e-6)
+
+    legacy = model_factory(SwingEstimator.AGGREGATE).predict(observations=obs, pending=pending)
+    legacy_projected = dict(legacy.projected_shares)
+    assert max(abs(legacy_projected[g] - observed[g]) for g in observed) > 1e-4

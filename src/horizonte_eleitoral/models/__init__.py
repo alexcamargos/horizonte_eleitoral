@@ -20,6 +20,7 @@ from horizonte_eleitoral.models.hierarchical import (
 from horizonte_eleitoral.models.hierarchical_v2 import (
     HierarchicalBayesianModelV2,
 )
+from horizonte_eleitoral.models.swing import SwingEstimator
 
 # A Versao 2 (com elasticidade 2018-2022) e o modelo preditivo padrao do sistema
 HierarchicalBayesianModel = HierarchicalBayesianModelV2
@@ -35,5 +36,6 @@ __all__ = [
     "PendingSection",
     "RawCountBaseline",
     "SectionObservation",
+    "SwingEstimator",
     "UFSwingWithShrinkageBaseline",
 ]

@@ -152,14 +152,12 @@ class MonteCarloSimulator:
             )
 
             hist_d = dict(sec.historical_shares)
-            raw_shares = [
-                max(0.0, hist_d.get(g, 1.0 / num_groups) + chosen_delta.get(g, 0.0)) for g in groups
+            weights = [
+                hist_d.get(g, 1.0 / num_groups) * np.exp(chosen_delta.get(g, 0.0)) for g in groups
             ]
-            sum_raw = sum(raw_shares)
+            sum_w = sum(weights)
             norm_shares = (
-                [x / sum_raw for x in raw_shares]
-                if sum_raw > 0.0
-                else [1.0 / num_groups for _ in groups]
+                [w / sum_w for w in weights] if sum_w > 0.0 else [1.0 / num_groups for _ in groups]
             )
 
             valid_exp = sec.electorate * sec.expected_turnout_rate * sec.expected_valid_rate
@@ -217,10 +215,8 @@ class MonteCarloSimulator:
         total_shift = nat_noise[:, None, :] + st_noise
 
         # Votos simulados para o conjunto de secoes pendentes de cada estado
-        sim_pend_by_state = np.maximum(
-            0.0,
-            state_base_mat[None, :, :] + state_vexp_vec[None, :, None] * total_shift,
-        )
+        # A perturbacao exponencial em log-ratio preserva estritamente o suporte positivo
+        sim_pend_by_state = state_base_mat[None, :, :] * np.exp(total_shift)
         s_state = np.sum(sim_pend_by_state, axis=2, keepdims=True)
         sim_pend_by_state = np.where(
             s_state > 0.0,

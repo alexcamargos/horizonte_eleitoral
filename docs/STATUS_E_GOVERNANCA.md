@@ -8,13 +8,13 @@ Este documento constitui a visão canônica do **Status de Saúde Atual**, da **
 
 | Dimensão | Métrica / Status | Evidência Canônica |
 |---|---|---|
-| **Suíte de Testes Automatizados** | **131 testes passando (100% sucesso)** | `uv run pytest` em 7,6s |
-| **Cobertura de Testes** | Unitários (90+), Contrato (6), Integração (15), E2E (11) | Diretório `tests/` |
+| **Suíte de Testes Automatizados** | **145 testes passando (100% sucesso)** | `uv run pytest` em 5,8s |
+| **Cobertura de Testes** | Unitários (104), Contrato (6), Integração (15), E2E (11), Swing (12) | Diretório `tests/` |
 | **Tipagem Estática** | **100% Strict** (zero avisos) | `uv run mypy src` |
 | **Linting e Formatação** | **100% Conforme** PEP 8 | `uv run ruff check .` e `uv run ruff format --check .` |
 | **Versão Mínima de Runtime** | Python 3.12+ (testado em 3.12 e 3.13) | `pyproject.toml` |
 | **Validação com Dados Reais** | **499.206 seções eleitorais** de 2026 | `data/real/catalog_2026.parquet` |
-| **Precisão Preditiva (2% apurado)** | **MAE < 0,30 pp** no 1º turno | Validação histórica reproduzível |
+| **Precisão Preditiva (2% apurado)** | **MAE = 0,06 pp** no 1º turno (erro de saldo 0,04 pp) | Validação histórica reproduzível |
 
 ---
 
@@ -24,7 +24,8 @@ Sob as regras de *Living Docs Governance*, a **Delete-Zone** documenta formalmen
 
 | Componente ou Conceito | Por que foi Removido / Descontinuado | Substituto Oficial | Condição para Revisitar |
 |---|---|---|---|
-| **`HierarchicalBayesianModelV1` como modelo padrão** | O modelo V1 utilizava shrinkage estático, resultando em adaptação lenta em municípios de alta volatilidade histórica. | `HierarchicalBayesianModelV2` (com `MunicipalElasticityIndex` 2018–2022). | Reativar apenas como baseline de comparação histórica (`--compare-v1-v2`). |
+| **Shift aditivo com corte (`max(0, hist + delta)`) e swing agregado com viés de Jensen** | O shift aditivo linear distorce a geometria do simplex e introduz viés de até 1,0 pp de margem; o swing log-ratio agregado sofre do viés não-linear de Jensen (+0,43 pp em amostra). | `calibrated_logratio_swing` via Newton-Raphson (`src/horizonte_eleitoral/models/swing.py`) e formulação exponencial $p_{ik} \propto b_{ik} e^{\delta_k}$. | **Estritamente proibido** retornar a shifts aditivos lineares ou fórmulas agregadas não calibradas. |
+| **`HierarchicalBayesianModelV1` como modelo padrão** | O modelo V1 utilizava encolhimento aditivo estático e sofria de viés de Jensen na reconstrução. | `HierarchicalBayesianModelV2` (com MRP calibrado e encolhimento bayesiano). | Reativar apenas como baseline de comparação histórica (`--compare-v1-v2`). |
 | **Iteração linha por linha sobre CSVs de 500k seções** | Carregar `sections_2026.csv` em Python puro consumia 45s e mais de 3 GB de RAM, inviabilizando o dashboard interativo. | Catálogo colunar `catalog_2026.parquet` e consultas via DuckDB em memória (<0,8s). | Proibido retornar para carga linha por linha de CSVs em rotinas de produção ou dashboard. |
 | **Uso de `unittest` ou `unittest.mock`** | O projeto adota testes funcionais modernos com fixtures nativas e tipagem pytest. | `pytest` e `pytest-mock` (fixture `mocker`). | **Estritamente proibido** pelo padrão global do projeto. |
 | **Ajuste artificial de votos para "fechar conta"** | Adulterar contagens para conciliar arquivos com divergência mascara problemas de replicação nos CDNs do TSE. | `ReconciliationEngine` com política de *Failure-Stop* (`SnapshotStatus.INCONSISTENT`). | Nunca revisitar. A inviolabilidade dos dados oficiais é um princípio inegociável. |

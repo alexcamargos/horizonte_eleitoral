@@ -150,7 +150,8 @@ src/horizonte_eleitoral/
 │   ├── base.py                  # Protocolo canônico ForecastModel, SectionObservation, PendingSection
 │   ├── baselines.py             # 4 Baselines de referência (Raw, NoSwing, NatSwing, UFShrinkage)
 │   ├── hierarchical.py          # Modelo Hierárquico Bayesiano V1 (LEGADO / ARQUIVADO)
-│   └── hierarchical_v2.py       # Modelo Hierárquico Bayesiano V2 (MODELO ATIVO PADRÃO)
+│   ├── hierarchical_v2.py       # Modelo Hierárquico Bayesiano V2 (MODELO ATIVO PADRÃO)
+│   └── swing.py                 # Estimadores de swing log-ratio (calibrado por Newton-Raphson e agregado legado)
 │
 ├── normalization/               # Adaptadores dos Arquivos TSE (EA11..EA20)
 │   ├── adapters.py              # Parsing e extração tipada de boletins e totalizações

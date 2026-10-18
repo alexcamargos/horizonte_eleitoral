@@ -331,7 +331,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         "--simulate-2026-2t-pct",
         type=float,
         default=None,
-        help="Executa ensaio de marco do 2º turno majoritario de 2026 (ex: 50 para 50%).",
+        help="Executa ensaio de marco do 2º turno majoritario de 2026 (ex: 50 para 50%%).",
     )
     parser.add_argument(
         "--poll-tse-live",

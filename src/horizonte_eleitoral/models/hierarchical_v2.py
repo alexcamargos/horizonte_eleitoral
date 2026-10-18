@@ -11,6 +11,8 @@ from collections import defaultdict
 from collections.abc import Sequence
 from pathlib import Path
 
+import numpy as np
+
 from horizonte_eleitoral.historical.elasticity import MunicipalElasticityIndex
 from horizonte_eleitoral.models.base import (
     ForecastModel,
@@ -21,6 +23,11 @@ from horizonte_eleitoral.models.base import (
 from horizonte_eleitoral.models.hierarchical import (
     REGIONAL_ELECTORATE_WEIGHTS,
     REGIONS_BY_UF,
+)
+from horizonte_eleitoral.models.swing import (
+    SwingEstimator,
+    aggregate_logratio_swing,
+    calibrated_logratio_swing,
 )
 
 _DEFAULT_ELASTICITY_INDEX: MunicipalElasticityIndex | None = None
@@ -49,34 +56,36 @@ def get_default_elasticity_index() -> MunicipalElasticityIndex | None:
 class HierarchicalBayesianModelV2(ForecastModel):
     """Modelo hierarquico multinivel Versao 2 (v2) - MODELO PADRAO DO PROJETO.
 
-    Estima efeitos eleitorais parciais com encolhimento bayesiano multinivel (MRP)
-    onde o encolhimento municipal e modulado pela volatilidade historica do municipio:
-    municipios com alta volatilidade historica (swing alto) aceleram a absorcao da evidencia
-    de 2026, enquanto municipios estaveis retem a ancoragem conservadora na base de 2022.
+    Estima efeitos eleitorais com swing log-ratio calibrado via Newton-Raphson
+    e encolhimento bayesiano multinivel (MRP Nacional -> Regional -> Estadual),
+    eliminando o vies de agregacao nao-linear de Jensen e garantindo reconstrucao
+    exata dos votos observados sem distorcoes aditivas no simplex.
     """
 
     def __init__(
         self,
         elasticity_index: MunicipalElasticityIndex | None = None,
-        pseudo_count: float = 10.0,
+        pseudo_count: float = 1.0,
         shrinkage_region: float = 30.0,
         shrinkage_uf: float = 20.0,
-        shrinkage_muni: float = 10.0,
+        shrinkage_muni: float | None = None,
         elasticity_sensitivity: float = 2.0,
         reference_group: str = "OUTROS",
         auto_load_default: bool = True,
+        estimator: SwingEstimator = SwingEstimator.CALIBRATED,
     ) -> None:
-        """Inicializa o modelo hierarquico v2 com indice de elasticidade e hiperparametros.
+        """Inicializa o modelo hierarquico v2 com swing log-ratio calibrado e encolhimento MRP.
 
         Args:
             elasticity_index: Indice opcional de elasticidade historica 2018-2022.
-            pseudo_count: Constante de regularizacao.
-            shrinkage_region: Constante K de encolhimento regional para o nacional.
+            pseudo_count: Constante de regularizacao numerica para celulas vazias.
+            shrinkage_region: Constante K de encolhimento regional para o nacional MRP.
             shrinkage_uf: Constante K de encolhimento estadual para o regional.
-            shrinkage_muni: Constante K base de encolhimento municipal para o estadual.
+            shrinkage_muni: Constante K de encolhimento municipal (None desativa nivel municipal).
             elasticity_sensitivity: Sensibilidade de ajuste do encolhimento a volatilidade.
             reference_group: Grupo de referencia para log-odds/swings.
-            auto_load_default: Se True e elasticity_index for None, tenta carregar o indice padrao.
+            auto_load_default: Se True e elasticity_index for None, tenta carregar indice padrao.
+            estimator: Estimador de swing (CALIBRATED via Newton-Raphson ou AGGREGATE legado).
 
         Returns:
             None.
@@ -94,6 +103,7 @@ class HierarchicalBayesianModelV2(ForecastModel):
         self._k_muni = shrinkage_muni
         self._sensitivity = elasticity_sensitivity
         self._ref_group = reference_group
+        self._estimator = estimator
 
     def estimate_effects(
         self,
@@ -105,7 +115,7 @@ class HierarchicalBayesianModelV2(ForecastModel):
         dict[str, dict[str, float]],
         dict[str, dict[str, float]],
     ]:
-        """Estima swings aditivos com ponderacao regional e shrinkage modulado por elasticidade.
+        """Estima swings log-ratio multinivel com ponderacao regional MRP e shrinkage bayesiano.
 
         Args:
             observations: Sequencia de secoes eleitorais ja totalizadas e observadas.
@@ -113,7 +123,7 @@ class HierarchicalBayesianModelV2(ForecastModel):
 
         Returns:
             Tupla contendo:
-                - delta_nacional: Dicionario mapeando cada grupo ao shift nacional ponderado.
+                - delta_nacional: Dicionario mapeando cada grupo ao shift log-ratio nacional.
                 - deltas_regionais: Dicionario mapeando regiao a shifts partidarios.
                 - deltas_uf: Dicionario mapeando UF a shifts partidarios.
                 - deltas_municipais: Dicionario mapeando 'UF:codigo_municipio' a shifts.
@@ -125,21 +135,34 @@ class HierarchicalBayesianModelV2(ForecastModel):
             empty_g = {g: 0.0 for g in groups}
             return empty_g, {}, {}, {}
 
-        # 1. Agregacoes em todos os niveis a partir dos dados observados
-        nat_obs: dict[str, float] = {g: 0.0 for g in groups}
-        nat_hist: dict[str, float] = {g: 0.0 for g in groups}
+        num_groups = len(groups)
+        ref_idx = groups.index(self._ref_group) if self._ref_group in groups else num_groups - 1
 
-        reg_obs: dict[str, dict[str, float]] = defaultdict(lambda: {g: 0.0 for g in groups})
-        reg_hist: dict[str, dict[str, float]] = defaultdict(lambda: {g: 0.0 for g in groups})
+        # 1. Agrupamento de secoes observadas por regiao, UF e municipio
+        reg_valid: dict[str, list[float]] = defaultdict(list)
+        reg_hist: dict[str, list[list[float]]] = defaultdict(list)
+        reg_obs_votes: dict[str, np.ndarray] = defaultdict(
+            lambda: np.zeros(num_groups, dtype=np.float64)
+        )
         reg_count: dict[str, int] = defaultdict(int)
 
-        uf_obs: dict[str, dict[str, float]] = defaultdict(lambda: {g: 0.0 for g in groups})
-        uf_hist: dict[str, dict[str, float]] = defaultdict(lambda: {g: 0.0 for g in groups})
+        uf_valid: dict[str, list[float]] = defaultdict(list)
+        uf_hist: dict[str, list[list[float]]] = defaultdict(list)
+        uf_obs_votes: dict[str, np.ndarray] = defaultdict(
+            lambda: np.zeros(num_groups, dtype=np.float64)
+        )
         uf_count: dict[str, int] = defaultdict(int)
 
-        muni_obs: dict[str, dict[str, float]] = defaultdict(lambda: {g: 0.0 for g in groups})
-        muni_hist: dict[str, dict[str, float]] = defaultdict(lambda: {g: 0.0 for g in groups})
+        muni_valid: dict[str, list[float]] = defaultdict(list)
+        muni_hist: dict[str, list[list[float]]] = defaultdict(list)
+        muni_obs_votes: dict[str, np.ndarray] = defaultdict(
+            lambda: np.zeros(num_groups, dtype=np.float64)
+        )
         muni_count: dict[str, int] = defaultdict(int)
+
+        all_valid: list[float] = []
+        all_hist: list[list[float]] = []
+        all_votes = np.zeros(num_groups, dtype=np.float64)
 
         for obs in observations:
             uf = obs.state
@@ -148,88 +171,117 @@ class HierarchicalBayesianModelV2(ForecastModel):
 
             reg_count[reg] += 1
             uf_count[uf] += 1
-            muni_count[muni] += 1
+            if self._k_muni is not None and self._k_muni > 0:
+                muni_count[muni] += 1
+
+            v = float(obs.valid_votes)
+            all_valid.append(v)
+            reg_valid[reg].append(v)
+            uf_valid[uf].append(v)
+            if self._k_muni is not None and self._k_muni > 0:
+                muni_valid[muni].append(v)
 
             obs_d = dict(obs.group_votes)
             h_d = dict(obs.historical_shares)
-            v = float(obs.valid_votes)
 
-            for g in groups:
-                y = float(obs_d.get(g, 0))
-                b = v * float(h_d.get(g, 1.0 / len(groups)))
+            h_row = [float(h_d.get(g, 1.0 / num_groups)) for g in groups]
+            y_row = np.array([float(obs_d.get(g, 0)) for g in groups], dtype=np.float64)
 
-                nat_obs[g] += y
-                nat_hist[g] += b
-                reg_obs[reg][g] += y
-                reg_hist[reg][g] += b
-                uf_obs[uf][g] += y
-                uf_hist[uf][g] += b
-                muni_obs[muni][g] += y
-                muni_hist[muni][g] += b
+            all_hist.append(h_row)
+            all_votes += y_row
 
-        # Funcao auxiliar para calcular o shift aditivo linearizado
-        def _calc_shift(obs_map: dict[str, float], hist_map: dict[str, float]) -> dict[str, float]:
-            tot_o = sum(obs_map.values())
-            tot_h = sum(hist_map.values())
-            if tot_o <= 0.0 or tot_h <= 0.0:
-                return {g: 0.0 for g in groups}
-            return {g: (obs_map[g] / tot_o) - (hist_map[g] / tot_h) for g in groups}
+            reg_hist[reg].append(h_row)
+            reg_obs_votes[reg] += y_row
+
+            uf_hist[uf].append(h_row)
+            uf_obs_votes[uf] += y_row
+
+            if self._k_muni is not None and self._k_muni > 0:
+                muni_hist[muni].append(h_row)
+                muni_obs_votes[muni] += y_row
+
+        # Funcao auxiliar para estimar log-ratio swing em um subconjunto
+        def _calc_swing(
+            v_list: list[float],
+            h_list: list[list[float]],
+            y_sum: np.ndarray,
+        ) -> np.ndarray:
+            if not v_list or np.sum(y_sum) <= 0.0:
+                return np.zeros(num_groups, dtype=np.float64)
+            v_arr = np.asarray(v_list, dtype=np.float64)
+            h_arr = np.asarray(h_list, dtype=np.float64)
+            if self._estimator == SwingEstimator.CALIBRATED:
+                raw_tuple = calibrated_logratio_swing(
+                    v_arr,
+                    h_arr,
+                    y_sum,
+                    reference_index=ref_idx,
+                    pseudo_count=self._pseudo_count,
+                )
+            else:
+                raw_tuple = aggregate_logratio_swing(
+                    v_arr,
+                    h_arr,
+                    y_sum,
+                    reference_index=ref_idx,
+                    pseudo_count=self._pseudo_count,
+                )
+            return np.asarray(raw_tuple, dtype=np.float64)
 
         # 2. Efeitos Regionais Brutos
-        delta_reg_raw: dict[str, dict[str, float]] = {
-            reg: _calc_shift(reg_obs[reg], reg_hist[reg]) for reg in reg_count
+        raw_reg: dict[str, np.ndarray] = {
+            r: _calc_swing(reg_valid[r], reg_hist[r], reg_obs_votes[r]) for r in reg_count
         }
 
-        # 3. Efeito Nacional Ponderado pela composicao do eleitorado (MRP)
-        delta_nat: dict[str, float] = {g: 0.0 for g in groups}
+        # 3. Efeito Nacional Ponderado pela composicao censitaria regional (MRP)
+        delta_nat_arr = np.zeros(num_groups, dtype=np.float64)
         weight_sum = sum(REGIONAL_ELECTORATE_WEIGHTS.get(r, 0.01) for r in reg_count)
         if weight_sum > 0.0:
             for r in reg_count:
                 w = REGIONAL_ELECTORATE_WEIGHTS.get(r, 0.01) / weight_sum
-                for g in groups:
-                    delta_nat[g] += w * delta_reg_raw[r][g]
+                delta_nat_arr += w * raw_reg[r]
         else:
-            delta_nat = _calc_shift(nat_obs, nat_hist)
+            delta_nat_arr = _calc_swing(all_valid, all_hist, all_votes)
 
-        # 4. Efeitos Regionais com encolhimento para o Nacional
+        delta_nat = {g: float(delta_nat_arr[idx]) for idx, g in enumerate(groups)}
+
+        # 4. Efeitos Regionais com encolhimento bayesiano para o Nacional
         delta_reg: dict[str, dict[str, float]] = {}
+        delta_reg_arr: dict[str, np.ndarray] = {}
         for reg, count in reg_count.items():
             lambda_r = count / (count + self._k_reg)
-            delta_reg[reg] = {
-                g: lambda_r * delta_reg_raw[reg][g] + (1.0 - lambda_r) * delta_nat[g]
-                for g in groups
-            }
+            shrunk_r = lambda_r * raw_reg[reg] + (1.0 - lambda_r) * delta_nat_arr
+            delta_reg_arr[reg] = shrunk_r
+            delta_reg[reg] = {g: float(shrunk_r[idx]) for idx, g in enumerate(groups)}
 
         # 5. Efeitos Estaduais com encolhimento para o Regional
         delta_uf: dict[str, dict[str, float]] = {}
+        delta_uf_arr: dict[str, np.ndarray] = {}
         for uf, count in uf_count.items():
             reg = REGIONS_BY_UF.get(uf, "OUTRA")
-            parent_delta = delta_reg.get(reg, delta_nat)
-            raw_u = _calc_shift(uf_obs[uf], uf_hist[uf])
+            parent_arr = delta_reg_arr.get(reg, delta_nat_arr)
+            raw_u = _calc_swing(uf_valid[uf], uf_hist[uf], uf_obs_votes[uf])
             lambda_u = count / (count + self._k_uf)
-            delta_uf[uf] = {
-                g: lambda_u * raw_u[g] + (1.0 - lambda_u) * parent_delta.get(g, 0.0) for g in groups
-            }
+            shrunk_u = lambda_u * raw_u + (1.0 - lambda_u) * parent_arr
+            delta_uf_arr[uf] = shrunk_u
+            delta_uf[uf] = {g: float(shrunk_u[idx]) for idx, g in enumerate(groups)}
 
-        # 6. Efeitos Municipais com encolhimento modulado pela Elasticidade Historica
+        # 6. Efeitos Municipais (opcional se shrinkage_muni for configurado)
         delta_muni: dict[str, dict[str, float]] = {}
-        for muni, count in muni_count.items():
-            uf = muni.split(":")[0]
-            parent_delta = delta_uf.get(uf, delta_nat)
-            raw_m = _calc_shift(muni_obs[muni], muni_hist[muni])
+        if self._k_muni is not None and self._k_muni > 0:
+            for muni, count in muni_count.items():
+                uf = muni.split(":")[0]
+                parent_arr = delta_uf_arr.get(uf, delta_nat_arr)
+                raw_m = _calc_swing(muni_valid[muni], muni_hist[muni], muni_obs_votes[muni])
 
-            # Consulta volatilidade historica 2018-2022
-            vol = 0.05
-            if self._elasticity_index is not None:
-                vol = self._elasticity_index.get_volatility(muni, state=uf)
+                vol = 0.05
+                if self._elasticity_index is not None:
+                    vol = self._elasticity_index.get_volatility(muni, state=uf)
 
-            # Modula K_muni: maior volatilidade -> menor K efetivo -> maior lambda_m
-            effective_k_muni = self._k_muni / (1.0 + self._sensitivity * vol)
-            lambda_m = count / (count + effective_k_muni)
-
-            delta_muni[muni] = {
-                g: lambda_m * raw_m[g] + (1.0 - lambda_m) * parent_delta.get(g, 0.0) for g in groups
-            }
+                effective_k_muni = self._k_muni / (1.0 + self._sensitivity * vol)
+                lambda_m = count / (count + effective_k_muni)
+                shrunk_m = lambda_m * raw_m + (1.0 - lambda_m) * parent_arr
+                delta_muni[muni] = {g: float(shrunk_m[idx]) for idx, g in enumerate(groups)}
 
         return delta_nat, delta_reg, delta_uf, delta_muni
 
@@ -242,8 +294,8 @@ class HierarchicalBayesianModelV2(ForecastModel):
     ) -> ForecastResult:
         """Gera previsao pontual esperada do modelo hierarquico v2 sobre secoes pendentes.
 
-        Aplica os shifts estimados com modulacao de elasticidade as bases historicas
-        das secoes pendentes, sem qualquer acesso aos resultados reais das urnas nao abertas.
+        Aplica os swings log-ratio estimados as bases historicas das secoes pendentes
+        via formulacao multinomial logit (softmax), sem qualquer acesso aos resultados reais.
 
         Args:
             observations: Secoes observadas ja totalizadas.
@@ -272,30 +324,38 @@ class HierarchicalBayesianModelV2(ForecastModel):
         }
         proj_votes: dict[str, float] = {g: float(obs_votes[g]) for g in groups}
 
+        # Cache de exp(delta) por nivel para evitar recomputacao repetida
+        delta_cache: dict[str, np.ndarray] = {}
+
+        def _get_exp_delta(muni_key: str, uf_code: str, reg_code: str) -> np.ndarray:
+            if muni_key in delta_cache:
+                return delta_cache[muni_key]
+            d_dict = (
+                delta_muni.get(muni_key)
+                or delta_uf.get(uf_code)
+                or delta_reg.get(reg_code)
+                or delta_nat
+            )
+            arr = np.exp([d_dict.get(g, 0.0) for g in groups])
+            delta_cache[muni_key] = arr
+            return arr
+
         for sec in pending:
             valid_expected = sec.electorate * sec.expected_turnout_rate * sec.expected_valid_rate
             uf = sec.state
             reg = REGIONS_BY_UF.get(uf, "OUTRA")
             muni = f"{uf}:{sec.municipality_code}"
 
-            chosen_delta = (
-                delta_muni.get(muni) or delta_uf.get(uf) or delta_reg.get(reg) or delta_nat
-            )
+            exp_d = _get_exp_delta(muni, uf, reg)
             hist_d = dict(sec.historical_shares)
+            h_vec = np.array([hist_d.get(g, 1.0 / len(groups)) for g in groups], dtype=np.float64)
 
-            raw_shares = [
-                max(0.0, hist_d.get(g, 1.0 / len(groups)) + chosen_delta.get(g, 0.0))
-                for g in groups
-            ]
-            sum_raw = sum(raw_shares)
-            norm_shares = (
-                [x / sum_raw for x in raw_shares]
-                if sum_raw > 0.0
-                else [1.0 / len(groups) for _ in groups]
-            )
+            w = h_vec * exp_d
+            sum_w = np.sum(w)
+            norm_shares = w / sum_w if sum_w > 0.0 else np.full(len(groups), 1.0 / len(groups))
 
             for idx, g in enumerate(groups):
-                proj_votes[g] += valid_expected * norm_shares[idx]
+                proj_votes[g] += valid_expected * float(norm_shares[idx])
 
         total_proj = sum(proj_votes.values())
         proj_shares = (

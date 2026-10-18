@@ -11,6 +11,7 @@ from horizonte_eleitoral.models.base import (
     PendingSection,
     SectionObservation,
 )
+from horizonte_eleitoral.models.swing import SwingEstimator, estimate_logratio_swing
 
 
 def _compute_observed_totals(
@@ -41,6 +42,52 @@ def _compute_observed_totals(
         shares = {g: votes[g] / total_valid for g in groups}
 
     return votes, shares, total_valid
+
+
+def _estimate_swing(
+    observations: list[SectionObservation],
+    groups: tuple[str, ...],
+    reference_group: str,
+    pseudo_count: float,
+    estimator: SwingEstimator,
+) -> dict[str, float]:
+    """Estima o swing em log-ratio de um conjunto de secoes observadas.
+
+    Args:
+        observations: Secoes observadas do recorte (nacional ou UF).
+        groups: Grupos eleitorais avaliados.
+        reference_group: Grupo de referencia (delta fixado em zero).
+        pseudo_count: Pseudo-contagem de regularizacao.
+        estimator: Estrategia de estimacao do swing.
+
+    Returns:
+        Dicionario grupo -> delta; zeros se nao houver observacoes ou referencia.
+
+    Raises:
+        InvariantViolationError: Se a calibracao nao convergir.
+    """
+    if not observations or reference_group not in groups:
+        return {g: 0.0 for g in groups}
+    default_share = 1.0 / len(groups)
+    valid: list[float] = []
+    hist_rows: list[list[float]] = []
+    totals = [0.0 for _ in groups]
+    for obs in observations:
+        valid.append(float(obs.valid_votes))
+        h_dict = dict(obs.historical_shares)
+        hist_rows.append([float(h_dict.get(g, default_share)) for g in groups])
+        o_dict = dict(obs.group_votes)
+        for idx, g in enumerate(groups):
+            totals[idx] += float(o_dict.get(g, 0))
+    delta = estimate_logratio_swing(
+        estimator,
+        valid,
+        hist_rows,
+        totals,
+        reference_index=groups.index(reference_group),
+        pseudo_count=pseudo_count,
+    )
+    return dict(zip(groups, delta, strict=True))
 
 
 class RawCountBaseline(ForecastModel):
@@ -142,17 +189,26 @@ class NationalSwingBaseline(ForecastModel):
 
     Estima o deslocamento médio nacional em log-ratios sobre as seções apuradas
     em relação ao seu perfil historico correspondente, aplicando-o as secoes pendentes.
+    Por padrao usa o estimador calibrado, que reproduz os totais observados quando
+    aplicado secao a secao (ver ``horizonte_eleitoral.models.swing``).
     """
 
-    def __init__(self, pseudo_count: float = 10.0, reference_group: str = "OUTROS") -> None:
+    def __init__(
+        self,
+        pseudo_count: float = 10.0,
+        reference_group: str = "OUTROS",
+        swing_estimator: SwingEstimator = SwingEstimator.CALIBRATED,
+    ) -> None:
         """Inicializa o modelo com pseudo-contagens e grupo base.
 
         Args:
             pseudo_count: Regularizacao para evitar log de zero.
             reference_group: Grupo usado como denominador nas razoes logaritmicas.
+            swing_estimator: Estimador do swing (calibrado por padrao; agregado e legado).
         """
         self._pseudo_count = pseudo_count
         self._ref_group = reference_group
+        self._swing_estimator = swing_estimator
 
     def predict(
         self,
@@ -170,26 +226,16 @@ class NationalSwingBaseline(ForecastModel):
 
         Returns:
             ForecastResult com projecao ajustada por swing nacional.
+
+        Raises:
+            InvariantViolationError: Se a calibracao do swing nao convergir.
         """
         obs_votes, obs_shares, _ = _compute_observed_totals(observations, groups)
 
-        # Base historica agregada DAS MESMAS secoes observadas
-        hist_in_obs: dict[str, float] = {g: 0.0 for g in groups}
-        for obs in observations:
-            h_dict = dict(obs.historical_shares)
-            for g in groups:
-                hist_in_obs[g] += obs.valid_votes * h_dict.get(g, 1.0 / len(groups))
-
-        # Calcula swing nacional em log-space
-        delta: dict[str, float] = {g: 0.0 for g in groups}
-        ref_obs = obs_votes.get(self._ref_group, 0) + self._pseudo_count
-        ref_hist = hist_in_obs.get(self._ref_group, 0.0) + self._pseudo_count
-
-        if ref_obs > 0 and ref_hist > 0:
-            for g in groups:
-                y_g = obs_votes.get(g, 0) + self._pseudo_count
-                b_g = hist_in_obs.get(g, 0.0) + self._pseudo_count
-                delta[g] = math.log(y_g / ref_obs) - math.log(b_g / ref_hist)
+        # Swing nacional em log-space estimado sobre as MESMAS secoes observadas
+        delta = _estimate_swing(
+            observations, groups, self._ref_group, self._pseudo_count, self._swing_estimator
+        )
 
         proj_votes: dict[str, float] = {g: float(obs_votes[g]) for g in groups}
 
@@ -232,9 +278,16 @@ class NationalSwingBaseline(ForecastModel):
 
 
 class UFSwingWithShrinkageBaseline(ForecastModel):
-    """Baseline 4: Swing por UF com Encolhimento (Shrinkage).
+    """Baseline 4: Swing por UF com Encolhimento (Shrinkage) por Credibilidade.
 
-    Combina a evidencia local da UF com o swing nacional por meio de shrinkage.
+    Combina a evidencia local da UF com o swing nacional por meio do fator de
+    credibilidade ``lambda_u = N_u / (N_u + K)``, em que ``N_u`` e o numero de
+    secoes observadas na UF e ``K`` e uma pseudo-contagem fixa. Equivale a media
+    a posteriori de um modelo normal-normal com razao de variancias
+    ``sigma^2 / tau^2 = K`` fixada a priori. Nao e um estimador de James-Stein
+    nem Empirical Bayes, pois ``K`` nao e estimado da dispersao entre UFs.
+    Os swings nacional e estaduais usam por padrao o estimador calibrado
+    (ver ``horizonte_eleitoral.models.swing``).
     """
 
     def __init__(
@@ -242,17 +295,21 @@ class UFSwingWithShrinkageBaseline(ForecastModel):
         pseudo_count: float = 10.0,
         shrinkage_k: float = 30.0,
         reference_group: str = "OUTROS",
+        swing_estimator: SwingEstimator = SwingEstimator.CALIBRATED,
     ) -> None:
         """Inicializa o modelo com parametros de suavizacao.
 
         Args:
             pseudo_count: Regularizacao para log-odds.
-            shrinkage_k: Constante K que define a forca de atracao ao nacional.
+            shrinkage_k: Pseudo-contagem fixa K (em secoes) que define a forca de
+                atracao ao swing nacional; nao e estimada dos dados.
             reference_group: Grupo de referencia para log-odds.
+            swing_estimator: Estimador do swing (calibrado por padrao; agregado e legado).
         """
         self._pseudo_count = pseudo_count
         self._shrinkage_k = shrinkage_k
         self._ref_group = reference_group
+        self._swing_estimator = swing_estimator
 
     def predict(
         self,
@@ -270,52 +327,33 @@ class UFSwingWithShrinkageBaseline(ForecastModel):
 
         Returns:
             ForecastResult com projecao balanceada por estado.
+
+        Raises:
+            InvariantViolationError: Se a calibracao do swing nao convergir.
         """
         obs_votes, obs_shares, _ = _compute_observed_totals(observations, groups)
 
         # 1. Swing Nacional
-        hist_nat: dict[str, float] = {g: 0.0 for g in groups}
-        for obs in observations:
-            h_dict = dict(obs.historical_shares)
-            for g in groups:
-                hist_nat[g] += obs.valid_votes * h_dict.get(g, 1.0 / len(groups))
-
-        delta_nat: dict[str, float] = {g: 0.0 for g in groups}
-        ref_obs_nat = obs_votes.get(self._ref_group, 0) + self._pseudo_count
-        ref_hist_nat = hist_nat.get(self._ref_group, 0.0) + self._pseudo_count
-        if ref_obs_nat > 0 and ref_hist_nat > 0:
-            for g in groups:
-                y_g = obs_votes.get(g, 0) + self._pseudo_count
-                b_g = hist_nat.get(g, 0.0) + self._pseudo_count
-                delta_nat[g] = math.log(y_g / ref_obs_nat) - math.log(b_g / ref_hist_nat)
+        delta_nat = _estimate_swing(
+            observations, groups, self._ref_group, self._pseudo_count, self._swing_estimator
+        )
 
         # 2. Swings por UF
-        uf_obs_votes: dict[str, dict[str, int]] = defaultdict(lambda: {g: 0 for g in groups})
-        uf_hist_votes: dict[str, dict[str, float]] = defaultdict(lambda: {g: 0.0 for g in groups})
-        uf_count: dict[str, int] = defaultdict(int)
-
+        obs_by_uf: dict[str, list[SectionObservation]] = defaultdict(list)
         for obs in observations:
-            uf = obs.state
-            uf_count[uf] += 1
-            obs_dict = dict(obs.group_votes)
-            h_dict = dict(obs.historical_shares)
-            for g in groups:
-                uf_obs_votes[uf][g] += obs_dict.get(g, 0)
-                uf_hist_votes[uf][g] += obs.valid_votes * h_dict.get(g, 1.0 / len(groups))
+            obs_by_uf[obs.state].append(obs)
 
         uf_delta: dict[str, dict[str, float]] = {}
-        for uf, count in uf_count.items():
-            uf_delta[uf] = {}
-            ref_obs_uf = uf_obs_votes[uf].get(self._ref_group, 0) + self._pseudo_count
-            ref_hist_uf = uf_hist_votes[uf].get(self._ref_group, 0.0) + self._pseudo_count
+        for uf, uf_obs in obs_by_uf.items():
+            count = len(uf_obs)
             lambda_uf = count / (count + self._shrinkage_k)
-
-            for g in groups:
-                y_uf = uf_obs_votes[uf].get(g, 0) + self._pseudo_count
-                b_uf = uf_hist_votes[uf].get(g, 0.0) + self._pseudo_count
-                raw_delta_uf = math.log(y_uf / ref_obs_uf) - math.log(b_uf / ref_hist_uf)
-                # Encolhimento: lambda * local + (1 - lambda) * nacional
-                uf_delta[uf][g] = lambda_uf * raw_delta_uf + (1.0 - lambda_uf) * delta_nat[g]
+            raw_delta_uf = _estimate_swing(
+                uf_obs, groups, self._ref_group, self._pseudo_count, self._swing_estimator
+            )
+            # Encolhimento: lambda * local + (1 - lambda) * nacional
+            uf_delta[uf] = {
+                g: lambda_uf * raw_delta_uf[g] + (1.0 - lambda_uf) * delta_nat[g] for g in groups
+            }
 
         # 3. Projecao das secoes pendentes
         proj_votes: dict[str, float] = {g: float(obs_votes[g]) for g in groups}

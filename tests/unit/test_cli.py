@@ -318,7 +318,18 @@ def test_cli_simulate_second_round(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Valida execucao de marco percentual do 2º turno majoritario via CLI."""
+    """Valida execucao de marco percentual do 2º turno majoritario via CLI.
+
+    Args:
+        tmp_path: Fixture nativa do pytest com diretorio temporario efemero.
+        capsys: Fixture nativa do pytest para captura de stdout e stderr.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
     from horizonte_eleitoral.ingestion.real_data_loader import RealDataLoader
 
     loader = RealDataLoader()
@@ -345,3 +356,23 @@ def test_cli_simulate_second_round(
     assert "Ensaio do 2º Turno concluido com sucesso!" in captured.out
     assert "PL" in captured.out
     assert "PT" in captured.out
+
+
+def test_cli_help_flag(capsys: pytest.CaptureFixture[str]) -> None:
+    """Valida que a flag --help exibe o texto de ajuda e encerra com codigo 0.
+
+    Args:
+        capsys: Fixture nativa do pytest para captura de stdout e stderr.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--help"])
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert "Horizonte Eleitoral - Sistema de Projecao Eleitoral de 2026." in captured.out
+    assert "--simulate-2026-2t-pct" in captured.out

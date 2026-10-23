@@ -184,8 +184,9 @@ class MonteCarloSimulator:
         tot_pend_count = len(pending)
         p_nat_pend = tot_pend_count / max(tot_pend_count + tot_obs_count, 1)
 
-        # Incerteza do swing macro nacional: escala com a fracao nao apurada
-        sigma_nat = 0.012 * p_nat_pend
+        # Incerteza do swing macro nacional: combina incerteza amostral inicial com FPC pendente
+        sample_uncert = max(0.20, 1.0 / np.sqrt(1.0 + tot_obs_count / 50.0))
+        sigma_nat = 0.018 * np.sqrt(p_nat_pend) * sample_uncert
         nat_noise_raw = rng.normal(0.0, max(sigma_nat, 1e-6), size=(self._num_draws, num_groups))
         nat_noise = nat_noise_raw - np.mean(nat_noise_raw, axis=1, keepdims=True)
 
@@ -199,8 +200,8 @@ class MonteCarloSimulator:
             q_avg = state_quality_sum[uf] / max(cnt_p, 1)
             p_u_pend = cnt_p / max(cnt_p + n_obs, 1)
 
-            # Incerteza posterior do estado baseada na amostra observada e no eleitorado pendente
-            state_sd[i] = (0.025 / np.sqrt(n_obs / 20.0 + 1.0)) * p_u_pend * q_avg
+            # Incerteza posterior do estado baseada na teoria de amostragem finita (FPC)
+            state_sd[i] = (0.035 / np.sqrt(n_obs / 20.0 + 1.0)) * np.sqrt(p_u_pend) * np.sqrt(q_avg)
             state_base_mat[i] = state_base_pend_votes[uf]
             state_vexp_vec[i] = state_valid_expected[uf]
 

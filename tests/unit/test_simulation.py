@@ -118,3 +118,67 @@ def test_monte_carlo_reproducibility() -> None:
     assert res1.q05_shares == res2.q05_shares
     assert res1.q95_shares == res2.q95_shares
     assert res1.second_round_probability == res2.second_round_probability
+
+
+def test_monte_carlo_finite_population_correction_uncertainty() -> None:
+    """Valida reducao monotona do intervalo de credibilidade conforme apuracao avanca (FPC)."""
+    model = HierarchicalBayesianModel()
+    sim = MonteCarloSimulator(num_draws=400, seed=42)
+
+    # Cria 10 secoes no total
+    all_sections_obs = [
+        SectionObservation(
+            section_id=f"SP:1:{i}",
+            state="SP",
+            municipality_code="71072",
+            valid_votes=400,
+            group_votes=(("PT", 200), ("PL", 160), ("OUTROS", 40)),
+            historical_shares=(("PT", 0.5), ("PL", 0.4), ("OUTROS", 0.1)),
+        )
+        for i in range(1, 11)
+    ]
+    all_sections_pend = [
+        PendingSection(
+            section_id=f"SP:1:{i}",
+            state="SP",
+            municipality_code="71072",
+            electorate=500,
+            historical_shares=(("PT", 0.5), ("PL", 0.4), ("OUTROS", 0.1)),
+        )
+        for i in range(1, 11)
+    ]
+
+    # Cenario A: Apenas 1 secao observada (90% pendente)
+    res_sparse = sim.simulate(
+        observations=all_sections_obs[:1],
+        pending=all_sections_pend[1:],
+        model=model,
+    )
+    q05_a = dict(res_sparse.q05_shares)
+    q95_a = dict(res_sparse.q95_shares)
+    width_a = q95_a["PT"] - q05_a["PT"]
+
+    # Cenario B: 8 secoes observadas (20% pendente)
+    res_dense = sim.simulate(
+        observations=all_sections_obs[:8],
+        pending=all_sections_pend[8:],
+        model=model,
+    )
+    q05_b = dict(res_dense.q05_shares)
+    q95_b = dict(res_dense.q95_shares)
+    width_b = q95_b["PT"] - q05_b["PT"]
+
+    # Cenario C: 10 secoes observadas (0% pendente - apuracao completa)
+    res_complete = sim.simulate(
+        observations=all_sections_obs,
+        pending=[],
+        model=model,
+    )
+    q05_c = dict(res_complete.q05_shares)
+    q95_c = dict(res_complete.q95_shares)
+    width_c = q95_c["PT"] - q05_c["PT"]
+
+    # FPC garante que a incerteza com 90% pendente e maior que com 20% pendente,
+    # e com 0% pendente a incerteza e estritamente nula.
+    assert width_a > width_b > width_c
+    assert width_c == 0.0

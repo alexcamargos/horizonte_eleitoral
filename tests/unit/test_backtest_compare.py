@@ -80,3 +80,21 @@ def test_run_v1_v2_comparison_empty_catalog() -> None:
     """Verifica que catalogo vazio lanca ValueError."""
     with pytest.raises(ValueError, match="sections_catalog nao pode ser vazio"):
         run_v1_v2_comparison(sections_catalog=[])
+
+
+def test_compute_metrics_directional_leader_bias() -> None:
+    """Valida que o bias calculado e o vies direcional do lider e nao zero por soma simplex."""
+    from horizonte_eleitoral.backtest.metrics import compute_metrics
+
+    # PL lider com 50%, PT com 40%, OUTROS com 10%
+    final = {"PL": 0.50, "PT": 0.40, "OUTROS": 0.10}
+    # Modelo preve PL com 55% (+0.05), PT com 35% (-0.05), OUTROS 10%
+    projected = {"PL": 0.55, "PT": 0.35, "OUTROS": 0.10}
+
+    mae, bias, lead_error = compute_metrics(projected, final)
+
+    assert mae == pytest.approx(0.033333, abs=1e-5)
+    # Lider (PL) foi superestimado em +0.05:
+    assert bias == pytest.approx(0.05, abs=1e-5)
+    # Lead real era 0.10, projetado era 0.20 -> lead_error = 0.10
+    assert lead_error == pytest.approx(0.10, abs=1e-5)

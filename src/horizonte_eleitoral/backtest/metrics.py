@@ -10,7 +10,7 @@ def compute_metrics(
     final_shares: Mapping[str, float],
     groups: tuple[str, ...] = ("PT", "PL", "OUTROS"),
 ) -> tuple[float, float, float]:
-    """Calcula MAE, vies medio e erro no saldo entre os dois principais candidatos.
+    """Calcula MAE, vies direcional do lider e erro no saldo entre os dois principais candidatos.
 
     Args:
         projected_shares: Dicionario de participacoes estimadas pelo modelo.
@@ -29,11 +29,13 @@ def compute_metrics(
 
     errors = [projected_shares[g] - final_shares[g] for g in groups]
     mae = sum(abs(e) for e in errors) / len(groups)
-    bias = sum(errors) / len(groups)
 
     # Identifica os dois principais no resultado real
     sorted_final = sorted(groups, key=lambda g: final_shares[g], reverse=True)
     g1, g2 = sorted_final[0], sorted_final[1]
+
+    # Vies direcional do candidato lider (evita a degeneracao de soma zero no simplex)
+    bias = projected_shares[g1] - final_shares[g1]
 
     real_lead = final_shares[g1] - final_shares[g2]
     projected_lead = projected_shares[g1] - projected_shares[g2]

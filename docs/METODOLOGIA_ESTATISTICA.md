@@ -101,9 +101,11 @@ graph TD
 ```
 
 #### Nível 1: Efeito Nacional Ponderado por Pós-Estratificação (MRP)
-Em vez de calcular a média aritmética simples das seções apuradas (que seria dominada pelas regiões que apuram mais rápido), o efeito nacional $\boldsymbol{\delta}_{\text{nat}}$ é sintetizado através da **pós-estratificação censitária regional**:
-$$\boldsymbol{\delta}_{\text{nat}} = \frac{\sum_{r=1}^{5} \omega_r \cdot \boldsymbol{\delta}_{r}^{\text{raw}}}{\sum_{r=1}^{5} \omega_r}$$
-Onde $\omega_r$ são os pesos oficiais do censo do eleitorado brasileiro obtidos a priori junto ao TSE:
+Em vez de calcular a média aritmética simples das seções apuradas (que seria dominada pelas regiões que apuram mais rápido), o efeito nacional $\boldsymbol{\delta}_{\text{nat}}$ é sintetizado através da **pós-estratificação censitária regional ancorada no prior histórico**. Cada região observada é ponderada por sua credibilidade amostral $\lambda_r$ e pelo seu peso oficial no eleitorado nacional $\omega_r$, enquanto as regiões pendentes permanecem ancoradas no prior histórico nulo ($\boldsymbol{\delta}_0 = \mathbf{0}$):
+$$\boldsymbol{\delta}_{\text{nat}} = \sum_{r \in \mathcal{R}_{\text{obs}}} \omega_r \cdot \lambda_r \cdot \boldsymbol{\delta}_{r}^{\text{raw}}, \quad \text{onde } \lambda_r = \frac{N_r^{\text{obs}}}{N_r^{\text{obs}} + K_{\text{reg}}}$$
+Essa ancoragem impede que os primeiros boletins de urna de uma única macro-região rápida (como o Sul) imponham seu swing regional a 100% do país nos minutos iniciais da totalização.
+
+Os pesos $\omega_r$ refletem a distribuição censitária oficial do eleitorado brasileiro junto ao TSE:
 - **Sudeste:** 42,8%
 - **Nordeste:** 27,1%
 - **Sul:** 14,8%
@@ -131,12 +133,14 @@ A estimativa pontual informa o valor esperado central, mas os operadores eleitor
 O `MonteCarloSimulator` executa **2.000 sorteios estocásticos vetorizados** propagando incertezas em múltiplas escalas:
 
 ### 4.1 Incerteza Macro Nacional
-A incerteza agregada nacional decresce como função direta da raiz quadrada do eleitorado pendente ($f_{\text{pend}} \in [0, 1]$) e da contagem de seções observadas ($N_{\text{obs}}$):
-$$\sigma_{\text{nat}} = 0.04 \cdot \sqrt{f_{\text{pend}}} \cdot \max\left(0.20, \frac{1}{\sqrt{1 + N_{\text{obs}} / 50}}\right)$$
+A incerteza agregada nacional combina o Fator de Correção de População Finita (FPC, proporcional a $\sqrt{p_{\text{nat\_pend}}}$) com o decaimento da incerteza amostral inicial à medida que seções $N_{\text{obs}}$ são totalizadas:
+$$\sigma_{\text{nat}} = 0.018 \cdot \sqrt{p_{\text{nat\_pend}}} \cdot \max\left(0.20, \frac{1}{\sqrt{1 + N_{\text{obs}} / 50}}\right)$$
+Quando $p_{\text{nat\_pend}} \to 0$ (100% de apuração), $\sigma_{\text{nat}}$ converge monotonicamente e com exatidão a zero.
 
 ### 4.2 Incerteza Estadual Ponderada por Pareamento
-Para cada estado $u$, a variância considera a fração pendente e a qualidade média do pareamento geográfico das seções daquela UF ($q_{\text{factor}} \in [1.0, 4.0]$):
-$$\sigma_u = 0.05 \cdot \sqrt{f_{\text{pend}}} \cdot \sqrt{q_{\text{factor}}} \cdot \max\left(0.25, \frac{1}{\sqrt{1 + N_u^{\text{obs}} / 20}}\right)$$
+Para cada estado $u$, o desvio-padrão a posteriori $\sigma_u$ é calibrado pela teoria de amostragem finita e ajustado pela qualidade média de pareamento geográfico das seções pendentes ($q_{\text{avg}} \in [1.0, 4.0]$):
+$$\sigma_u = \frac{0.035}{\sqrt{N_u^{\text{obs}} / 20 + 1}} \cdot \sqrt{p_{u\_\text{pend}}} \cdot \sqrt{q_{\text{avg}}}$$
+Onde $p_{u\_\text{pend}}$ representa a proporção de seções pendentes no estado $u$.
 
 ### 4.3 Sorteio e Geração dos Intervalos
 Para cada sorteio $s \in \{1, \dots, 2000\}$:
@@ -166,7 +170,7 @@ flowchart TD
     C1 -- Não --> C2{"Distância Haversine <= 100m no mesmo município?"}
     C2 -- Sim --> COMPLEX["Classe B: SAME_COMPLEX (Mult: 1.2x)"]
     C2 -- Não --> C3{"Vizinhos até 5.000m no município?"}
-    C3 -- Sim --> NEIGHBOR["Classe C: NEIGHBORING (Ponderação 1/d, Mult: 1.5x)"]
+    C3 -- Sim --> NEIGHBOR["Classe C: NEIGHBORING (Decaimento exp(-d/1000), Mult: 1.5x)"]
     C3 -- Não --> C4{"Outras seções na mesma Zona Eleitoral?"}
     C4 -- Sim --> ZONE["Classe D: SAME_ZONE (Mult: 2.0x)"]
     C4 -- Não --> C5{"Outras seções no mesmo Município?"}
@@ -177,6 +181,10 @@ flowchart TD
 A distância geodésica entre locais é calculada via fórmula de **Haversine**:
 $$d = 2 R \arcsin\left(\sqrt{\sin^2\left(\frac{\Delta \phi}{2}\right) + \cos(\phi_1)\cos(\phi_2)\sin^2\left(\frac{\Delta \lambda}{2}\right)}\right)$$
 Onde $R = 6.371.000\text{ m}$.
+
+Quando não há correspondência exata de localidade mas existem seções vizinhas no mesmo município dentro do raio de tolerância ($d \le 5.000\text{ m}$), a composição histórica agregada é estimada por ponderação com decaimento exponencial suave da distância geodésica:
+$$w_j = \exp\left(-\frac{d_j}{1000\text{ m}}\right)$$
+Garantindo transição espacial contínua e sem singularidades numéricas.
 
 ---
 
@@ -198,6 +206,23 @@ O sistema foi rigorosamente validado contra os **499.206 boletins de urna reais*
 1. **Com apenas 2% do eleitorado apurado**, enquanto o apurado bruto exibia o PL com 55,14% contra 35,77% do PT (distorção regional de quase 20 pontos), o Modelo V2 consolidado com swing calibrado já projetava **PT 45.25% e PL 46.99%**, com um erro médio absoluto de apenas **0.06 pp** em relação ao resultado oficial final (45.16% vs 47.03%).
 2. **O resultado final coube rigorosamente dentro da faixa de 90%** em todos os instantes temporais.
 3. **Probabilidade de 2º Turno:** O sistema estimou **100% de probabilidade de 2º turno** desde o marco de 2%, alertando corretamente a sociedade de que a eleição presidencial não seria decidida na primeira rodada.
+
+### 6.1 Métricas de Avaliação de Desempenho e Backtest
+
+A calibração e a acurácia dos modelos preditivos são auditadas continuamente por meio de métricas determinísticas implementadas no módulo `backtest.metrics`:
+
+1. **Erro Médio Absoluto (MAE):**
+   Mede a discrepância média absoluta entre as proporções projetadas $\hat{p}_k$ e os resultados oficiais finais $p_k$ entre todos os grupos políticos:
+   $$\text{MAE} = \frac{1}{K} \sum_{k=1}^K |\hat{p}_k - p_k|$$
+
+2. **Viés Direcional do Líder (Leader Directional Bias):**
+   Calcula o erro assinado exclusivamente sobre o candidato líder do pleito no resultado oficial final ($g_1 = \arg\max_k p_k$):
+   $$\text{Bias} = \hat{p}_{g_1} - p_{g_1}$$
+   *Justificativa teórica:* No simplex fechado de probabilidade ($\sum_k \hat{p}_k = \sum_k p_k = 1$), a média aritmética ingênua dos resíduos $\frac{1}{K} \sum (\hat{p}_k - p_k)$ é identicamente zero por definição algébrica. O viés direcional ancorado no líder captura com fidelidade sobre-estimações ($\text{Bias} > 0$) ou sub-estimações ($\text{Bias} < 0$) do candidato vencedor.
+
+3. **Erro na Margem de Liderança (Lead Error):**
+   Mede a precisão da vantagem projetada entre o primeiro e o segundo colocado ($g_1, g_2$):
+   $$\text{Lead Error} = \left| (\hat{p}_{g_1} - \hat{p}_{g_2}) - (p_{g_1} - p_{g_2}) \right|$$
 
 ---
 

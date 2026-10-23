@@ -116,3 +116,35 @@ def test_hierarchical_v1_v2_compatibility() -> None:
 
     for g in ("PT", "PL", "OUTROS"):
         assert abs(v1_dict[g] - v2_dict[g]) < 0.05
+
+
+def test_hierarchical_v2_zero_lockout_and_large_delta() -> None:
+    """Valida que shares historicos nulos recebem piso e grandes deltas nao causam overflow."""
+    obs = [
+        SectionObservation(
+            section_id="SP:1:1",
+            state="SP",
+            municipality_code="71072",
+            valid_votes=1000,
+            group_votes=(("OUTROS", 10), ("PL", 10), ("PT", 980)),
+            historical_shares=(("OUTROS", 0.05), ("PL", 0.90), ("PT", 0.05)),
+        )
+    ]
+    # Secao pendente onde PT tinha exatamente 0.0% no historico
+    pending = [
+        PendingSection(
+            section_id="SP:1:2",
+            state="SP",
+            municipality_code="71072",
+            electorate=1000,
+            historical_shares=(("OUTROS", 0.10), ("PL", 0.90), ("PT", 0.0)),
+        )
+    ]
+    model = HierarchicalBayesianModelV2()
+    result = model.predict(observations=obs, pending=pending)
+
+    shares = dict(result.projected_shares)
+    assert abs(sum(shares.values()) - 1.0) < 1e-4
+    # Com piso regularizador de 1e-5 e swing fortemente favoravel ao PT,
+    # o PT deve receber uma projecao estritamente positiva em vez de 0.0 perpetuo
+    assert shares["PT"] > 0.0

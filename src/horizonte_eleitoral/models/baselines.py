@@ -239,20 +239,22 @@ class NationalSwingBaseline(ForecastModel):
 
         proj_votes: dict[str, float] = {g: float(obs_votes[g]) for g in groups}
 
+        max_delta_nat = max(delta.values(), default=0.0)
+
         # Aplica swing as secoes pendentes
         for sec in pending:
             valid_expected = sec.electorate * sec.expected_turnout_rate * sec.expected_valid_rate
             hist_dict = dict(sec.historical_shares)
 
-            # Softmax estabilizada numericamente: p[k] = b[k] * exp(delta[k]) / sum(...)
+            # Softmax estabilizada numericamente: p[k] = b[k] * exp(delta[k] - c) / sum(...)
             unnorm_p: dict[str, float] = {}
             for g in groups:
                 b_k = hist_dict.get(g, 1.0 / len(groups))
-                unnorm_p[g] = b_k * math.exp(delta[g])
+                unnorm_p[g] = b_k * math.exp(delta[g] - max_delta_nat)
 
             denom = sum(unnorm_p.values())
             for g in groups:
-                p_k = unnorm_p[g] / denom
+                p_k = (unnorm_p[g] / denom) if denom > 0.0 else (1.0 / len(groups))
                 proj_votes[g] += valid_expected * p_k
 
         total_proj = sum(proj_votes.values())
@@ -362,15 +364,16 @@ class UFSwingWithShrinkageBaseline(ForecastModel):
             valid_expected = sec.electorate * sec.expected_turnout_rate * sec.expected_valid_rate
             hist_dict = dict(sec.historical_shares)
             chosen_delta = uf_delta.get(sec.state, delta_nat)
+            max_delta_uf = max((chosen_delta.get(g, 0.0) for g in groups), default=0.0)
 
             unnorm_p: dict[str, float] = {}
             for g in groups:
                 b_k = hist_dict.get(g, 1.0 / len(groups))
-                unnorm_p[g] = b_k * math.exp(chosen_delta.get(g, 0.0))
+                unnorm_p[g] = b_k * math.exp(chosen_delta.get(g, 0.0) - max_delta_uf)
 
             denom = sum(unnorm_p.values())
             for g in groups:
-                p_k = unnorm_p[g] / denom
+                p_k = (unnorm_p[g] / denom) if denom > 0.0 else (1.0 / len(groups))
                 proj_votes[g] += valid_expected * p_k
 
         total_proj = sum(proj_votes.values())

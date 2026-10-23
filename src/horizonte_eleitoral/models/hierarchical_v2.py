@@ -336,7 +336,8 @@ class HierarchicalBayesianModelV2(ForecastModel):
                 or delta_reg.get(reg_code)
                 or delta_nat
             )
-            arr = np.exp([d_dict.get(g, 0.0) for g in groups])
+            raw_d = np.array([d_dict.get(g, 0.0) for g in groups], dtype=np.float64)
+            arr = np.exp(raw_d - np.max(raw_d))
             delta_cache[muni_key] = arr
             return arr
 
@@ -348,7 +349,8 @@ class HierarchicalBayesianModelV2(ForecastModel):
 
             exp_d = _get_exp_delta(muni, uf, reg)
             hist_d = dict(sec.historical_shares)
-            h_vec = np.array([hist_d.get(g, 1.0 / len(groups)) for g in groups], dtype=np.float64)
+            raw_h = [hist_d.get(g, 1.0 / len(groups)) for g in groups]
+            h_vec = np.maximum(np.array(raw_h, dtype=np.float64), 1e-5)
 
             w = h_vec * exp_d
             sum_w = np.sum(w)

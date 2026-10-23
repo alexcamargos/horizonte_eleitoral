@@ -139,6 +139,34 @@ def test_uf_swing_with_shrinkage() -> None:
     assert abs(sum(shares.values()) - 1.0) < 1e-4
 
 
+def test_national_swing_baseline_large_delta_no_overflow() -> None:
+    """Garante que swings extremos nao provoquem OverflowError em exponenciais."""
+    obs = [
+        SectionObservation(
+            section_id="SP:1:1",
+            state="SP",
+            municipality_code="71072",
+            valid_votes=1000,
+            group_votes=(("PT", 999), ("PL", 1), ("OUTROS", 0)),
+            historical_shares=(("PT", 0.01), ("PL", 0.98), ("OUTROS", 0.01)),
+        )
+    ]
+    pending = [
+        PendingSection(
+            section_id="SP:1:2",
+            state="SP",
+            municipality_code="71072",
+            electorate=500,
+            historical_shares=(("PT", 0.1), ("PL", 0.8), ("OUTROS", 0.1)),
+        )
+    ]
+    baseline = NationalSwingBaseline()
+    result = baseline.predict(observations=obs, pending=pending)
+    res_shares = dict(result.projected_shares)
+    assert abs(sum(res_shares.values()) - 1.0) < 1e-4
+    assert res_shares["PT"] > 0.80
+
+
 def _self_projection_inputs() -> tuple[list[SectionObservation], list[PendingSection]]:
     """Monta secoes heterogeneas e as mesmas secoes como pendentes com peso exato.
 

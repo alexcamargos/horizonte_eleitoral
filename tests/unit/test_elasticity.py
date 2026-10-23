@@ -144,3 +144,40 @@ def test_elasticity_index_parquet_roundtrip(tmp_path: Path) -> None:
     assert prof is not None
     assert prof.municipality_code == "12345"
     assert prof.volatility == pytest.approx(0.05)
+
+
+def test_elasticity_build_from_csvs(tmp_path: Path) -> None:
+    """Valida construcao do indice a partir de CSVs reais de 2018 e 2022.
+
+    Args:
+        tmp_path: Diretorio temporario gerenciado pelo pytest.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    csv_18 = tmp_path / "hist_2018.csv"
+    csv_22 = tmp_path / "hist_2022.csv"
+
+    csv_18.write_text(
+        "state,municipality_code,valid_votes,votes_pt,votes_pl\n"
+        "SP,71072,1000,300,600\n"
+        "BA,38490,2000,1400,500\n",
+        encoding="utf-8",
+    )
+    csv_22.write_text(
+        "state,municipality_code,valid_votes,votes_pt,votes_pl\n"
+        "SP,71072,1200,480,600\n"
+        "BA,38490,2200,1540,440\n",
+        encoding="utf-8",
+    )
+
+    index = MunicipalElasticityIndex.build_from_csvs(csv_18, csv_22)
+    assert index.total_municipalities == 2
+    prof_sp = index.get_profile("SP:71072")
+    assert prof_sp is not None
+    assert prof_sp.pt_share_2018 == pytest.approx(0.30)
+    assert prof_sp.pt_share_2022 == pytest.approx(0.40)
+    assert prof_sp.pt_swing == pytest.approx(0.10)

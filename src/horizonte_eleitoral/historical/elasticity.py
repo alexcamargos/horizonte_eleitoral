@@ -308,6 +308,8 @@ class MunicipalElasticityIndex:
             with open(csv_path, encoding="utf-8") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
+                    raw_uf = row.get("state") or row.get("SG_UF", "")
+                    uf = str(raw_uf).strip().upper()
                     raw_muni = row.get("municipality_code") or row.get("CD_MUNICIPIO", "")
                     muni = str(raw_muni).strip().zfill(5)
                     if not uf or not muni:

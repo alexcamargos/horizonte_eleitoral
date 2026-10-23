@@ -145,7 +145,7 @@ def run_v1_v2_comparison(
 
     for cp in sorted(checkpoints):
         target_elec = (cp / 100.0) * total_elec
-        cutoff = bisect.bisect_left(cum_elec, int(target_elec))
+        cutoff = bisect.bisect_right(cum_elec, int(target_elec))
         cutoff = min(cutoff, n_sections)
 
         observed = all_obs[:cutoff]

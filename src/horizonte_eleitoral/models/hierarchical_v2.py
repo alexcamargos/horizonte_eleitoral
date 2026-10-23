@@ -234,14 +234,15 @@ class HierarchicalBayesianModelV2(ForecastModel):
         }
 
         # 3. Efeito Nacional Ponderado pela composicao censitaria regional (MRP)
+        # Cada regiao observada e encolhida por sua credibilidade amostral
+        # lambda_r = N_r / (N_r + K_reg) e ponderada pelo seu peso oficial no eleitorado nacional.
+        # As regioes pendentes permanecem ancoradas no prior historico nulo (delta = 0),
+        # evitando que os primeiros boletins de uma unica regiao dominem o pais a 100%.
         delta_nat_arr = np.zeros(num_groups, dtype=np.float64)
-        weight_sum = sum(REGIONAL_ELECTORATE_WEIGHTS.get(r, 0.01) for r in reg_count)
-        if weight_sum > 0.0:
-            for r in reg_count:
-                w = REGIONAL_ELECTORATE_WEIGHTS.get(r, 0.01) / weight_sum
-                delta_nat_arr += w * raw_reg[r]
-        else:
-            delta_nat_arr = _calc_swing(all_valid, all_hist, all_votes)
+        for r in reg_count:
+            w = REGIONAL_ELECTORATE_WEIGHTS.get(r, 0.01)
+            lambda_r = reg_count[r] / (reg_count[r] + self._k_reg)
+            delta_nat_arr += w * lambda_r * raw_reg[r]
 
         delta_nat = {g: float(delta_nat_arr[idx]) for idx, g in enumerate(groups)}
 

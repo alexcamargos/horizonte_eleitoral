@@ -16,6 +16,17 @@ def test_haversine_distance_known_points() -> None:
     assert 2500 < dist < 2800
 
 
+def test_haversine_distance_antipodal_boundary() -> None:
+    """Valida estabilidade numerica para pontos antipodais extremos.
+
+    Garante que a distancia em pontos diametralmente opostos nao lance
+    ValueError por imprecisao numerica em sqrt(1 - a).
+    """
+    # Polo Norte (90, 0) e Polo Sul (-90, 0)
+    dist = haversine_distance(90.0, 0.0, -90.0, 0.0)
+    assert abs(dist - 20015086.79) < 1000.0
+
+
 def test_matcher_exact_match() -> None:
     """Pareamento exato quando codigo do local, zona e municipio coincidem."""
     loc = HistoricalLocation(

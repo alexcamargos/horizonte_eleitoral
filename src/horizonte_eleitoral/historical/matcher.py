@@ -42,7 +42,8 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
         math.sin(delta_phi / 2.0) ** 2
         + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2.0) ** 2
     )
-    c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+    a_clamped = min(1.0, max(0.0, a))
+    c = 2.0 * math.atan2(math.sqrt(a_clamped), math.sqrt(max(0.0, 1.0 - a_clamped)))
     return EARTH_RADIUS_METERS * c
 
 

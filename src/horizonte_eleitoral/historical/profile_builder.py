@@ -127,8 +127,8 @@ class HistoricalProfileBuilder:
             raw_decimals[group] = Decimal(f"{normalized_float:.6f}")
 
         diff = Decimal("1.000000") - sum(raw_decimals.values())
-        first_group = self._configured_groups[0]
-        raw_decimals[first_group] += diff
+        max_group = max(raw_decimals, key=lambda g: raw_decimals[g])
+        raw_decimals[max_group] += diff
 
         shares_tuple = tuple(
             sorted(((grp, share) for grp, share in raw_decimals.items()), key=lambda x: x[0])

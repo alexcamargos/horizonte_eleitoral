@@ -217,6 +217,43 @@ def test_profile_builder_shares_sum_to_one_and_no_vote_duplication() -> None:
     assert profile1.match_entropy == 0.0
 
 
+def test_profile_builder_zero_share_first_group_negative_diff() -> None:
+    """Valida que o primeiro grupo com share zero nao recebe residuo negativo.
+
+    Evita que o arredondamento decimal gere shares negativos (-0.000001),
+    violando a invariante de SectionHistoricalProfile.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    votes = {
+        "loc_1": HistoricalVoteProfile(
+            location_id="loc_1",
+            valid_votes=3,
+            turnout=3,
+            group_votes=(("OUTROS", 0), ("PL", 1), ("PT", 2)),
+        )
+    }
+    builder = HistoricalProfileBuilder(votes, configured_groups=("OUTROS", "PL", "PT"))
+    section = SectionKey(
+        election=ElectionKey("002026", "01", "PRESIDENTE"),
+        municipality=MunicipalityKey("SP", "71072"),
+        zone="0001",
+        section="0001",
+    )
+    candidates = (matcher_candidate_helper("loc_1", MatchQuality.EXACT, 1.0),)
+    profile = builder.build_profile(section, candidates)  # type: ignore[arg-type]
+
+    shares_dict = dict(profile.shares)
+    assert shares_dict["OUTROS"] == Decimal("0.000000")
+    assert shares_dict["PL"] >= Decimal("0.000000")
+    assert shares_dict["PT"] >= Decimal("0.000000")
+    assert sum(shares_dict.values()) == Decimal("1.000000")
+
+
 def matcher_candidate_helper(loc_id: str, method: MatchQuality, weight: float) -> object:
     from horizonte_eleitoral.historical.models import MatchCandidate
 

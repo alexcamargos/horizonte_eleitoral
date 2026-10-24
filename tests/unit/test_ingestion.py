@@ -48,6 +48,21 @@ def test_tse_path_resolver_generates_canonical_urls() -> None:
     ea20_url = resolver.url_for_totalization(state="SP")
     assert ea20_url == "https://dadosabertos.tse.jus.br/002026/totalization/ea20-sp.json"
 
+    divulga_resolver = TSEPathResolver(
+        base_url="https://resultados.tse.jus.br",
+        election_id="6258",
+    )
+    divulga_url = divulga_resolver.url_for_divulgacao()
+    assert divulga_url == (
+        "https://resultados.tse.jus.br/oficial/ele2026/6258/dados/br/br-c0001-e006258-u.json"
+    )
+
+    simplificada_url = divulga_resolver.url_for_divulgacao_simplificada()
+    assert simplificada_url == (
+        "https://resultados.tse.jus.br/oficial/ele2026/6258/dados-simplificados/"
+        "br/br-c0001-e006258-r.json"
+    )
+
 
 def test_tse_path_resolver_rejects_invalid_inputs() -> None:
     """Valida rejeicao de URLs nao HTTPS e election_id vazio."""

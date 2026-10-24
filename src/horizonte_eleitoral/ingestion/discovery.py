@@ -146,7 +146,46 @@ class TSEPathResolver:
         """
         clean_base = self.base_url.rstrip("/")
         st = state.lower() if state else "br"
+        election_code = (
+            self.election_id.lstrip("0")
+            if self.election_id.isdigit() and self.election_id != "0"
+            else self.election_id
+        )
+        padded_code = self.election_id.zfill(6) if self.election_id.isdigit() else self.election_id
         return (
-            f"{clean_base}/oficial/ele2026/{self.election_id}/dados/"
-            f"{st}/{st}-{cargo_code}-e{self.election_id}-u.json"
+            f"{clean_base}/oficial/ele2026/{election_code}/dados/"
+            f"{st}/{st}-{cargo_code}-e{padded_code}-u.json"
+        )
+
+    def url_for_divulgacao_simplificada(
+        self,
+        *,
+        cargo_code: str = "c0001",
+        state: str | None = None,
+        round_num: int = 2,
+    ) -> str:
+        """Retorna URL oficial de dados simplificados da CDN do TSE (br-c0001-e*-r.json).
+
+        Args:
+            cargo_code: Codigo do cargo (padrao: 'c0001' para Presidente).
+            state: UF de 2 letras ou None para consolidado nacional ('br').
+            round_num: Turno da eleicao (1 ou 2).
+
+        Returns:
+            URL canonica de dados simplificados de totalizacao.
+
+        Raises:
+            None.
+        """
+        clean_base = self.base_url.rstrip("/")
+        st = state.lower() if state else "br"
+        election_code = (
+            self.election_id.lstrip("0")
+            if self.election_id.isdigit() and self.election_id != "0"
+            else self.election_id
+        )
+        padded_code = self.election_id.zfill(6) if self.election_id.isdigit() else self.election_id
+        return (
+            f"{clean_base}/oficial/ele2026/{election_code}/dados-simplificados/"
+            f"{st}/{st}-{cargo_code}-e{padded_code}-r.json"
         )

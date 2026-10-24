@@ -27,8 +27,9 @@ DEFAULT_ALLOWED_TSE_HOSTS = (
 )
 DEFAULT_MAX_REQUESTS_PER_SECOND = 20
 DEFAULT_MAX_CONCURRENCY = 10
-DEFAULT_TSE_POLL_INTERVAL_SECONDS = 300
-DEFAULT_TSE_ELECTION_ID_2T = "002026_2t"
+DEFAULT_TSE_POLL_INTERVAL_SECONDS = 60
+DEFAULT_TSE_ELECTION_ID_2T = "6258"
+DEFAULT_TSE_ENDPOINT_TYPE = "divulgacao"
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +45,8 @@ class Settings:
     tse_poll_interval_seconds: int = DEFAULT_TSE_POLL_INTERVAL_SECONDS
     tse_election_id_2t: str = DEFAULT_TSE_ELECTION_ID_2T
     ignore_schedule_gate: bool = False
+    tse_target_url: str | None = None
+    tse_endpoint_type: str = DEFAULT_TSE_ENDPOINT_TYPE
 
     def __post_init__(self) -> None:
         if not self.allowed_tse_hosts or any(
@@ -78,6 +81,8 @@ def load_settings(
         DEFAULT_TSE_POLL_INTERVAL_SECONDS,
     )
     tse_election_id_2t = values.get("HORIZONTE_TSE_ELECTION_ID_2T", DEFAULT_TSE_ELECTION_ID_2T)
+    tse_target_url = values.get("HORIZONTE_TSE_TARGET_URL") or None
+    tse_endpoint_type = values.get("HORIZONTE_TSE_ENDPOINT_TYPE", DEFAULT_TSE_ENDPOINT_TYPE)
     ignore_gate_val = values.get("HORIZONTE_IGNORE_SCHEDULE_GATE", "").lower() in (
         "true",
         "1",
@@ -102,6 +107,8 @@ def load_settings(
         tse_poll_interval_seconds=tse_poll_interval_seconds,
         tse_election_id_2t=tse_election_id_2t,
         ignore_schedule_gate=ignore_gate_val,
+        tse_target_url=tse_target_url,
+        tse_endpoint_type=tse_endpoint_type,
     )
 
 

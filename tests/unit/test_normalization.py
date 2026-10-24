@@ -75,3 +75,55 @@ def test_normalization_quarantines_malformed_json() -> None:
 
     with pytest.raises(ValidationError, match="raiz"):
         normalize_ea20(b'["nao_objeto"]')
+
+
+def test_normalize_ea20_parses_real_tse_nested_format() -> None:
+    """Valida conversao do formato oficial aninhado da CDN do TSE (u.json com carg, s, e, v)."""
+    payload = b"""
+    {
+        "ele": "6258",
+        "t": "2",
+        "tpabr": "br",
+        "cdabr": "br",
+        "s": {"ts": "499.248", "st": "150.000"},
+        "e": {"te": "158.745.502", "est": "45.000.000"},
+        "v": {"vv": "38.000.000", "vb": "1.000.000", "vn": "1.500.000"},
+        "carg": [
+            {
+                "cd": "1",
+                "agr": [
+                    {
+                        "par": [
+                            {
+                                "cand": [
+                                    {"n": "13", "nmu": "LULA", "vap": "20.000.000"}
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "par": [
+                            {
+                                "cand": [
+                                    {"n": "22", "nmu": "FLAVIO BOLSONARO", "vap": "18.000.000"}
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+    """
+    totalization = normalize_ea20(payload, round_num=2)
+    assert totalization.total_electorate == 158745502
+    assert totalization.totalized_electorate == 45000000
+    assert totalization.total_sections == 499248
+    assert totalization.totalized_sections == 150000
+    assert totalization.valid_votes == 38000000
+    assert totalization.blank_votes == 1000000
+    assert totalization.null_votes == 1500000
+
+    votes_dict = dict(totalization.candidate_group_votes)
+    assert votes_dict["PT"] == 20000000
+    assert votes_dict["PL"] == 18000000

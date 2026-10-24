@@ -60,7 +60,9 @@ def _to_int(val: object, default: int = 0) -> int:
         return int(val)
     if isinstance(val, (str, bytes)):
         try:
-            return int(val)
+            clean_str = val.decode("utf-8") if isinstance(val, bytes) else val
+            clean_str = clean_str.replace(".", "").replace(" ", "").strip()
+            return int(clean_str)
         except ValueError:
             return default
     return default
@@ -202,24 +204,72 @@ def normalize_ea20(
 
     scope_code = str(data.get("cd", data.get("cdAbr", scope.value)))
 
-    total_electorate = _to_int(data.get("e", data.get("eleitorado", 0)))
-    totalized_electorate = _to_int(
-        data.get("ea", data.get("e_tot", data.get("eleitorado_apurado", 0)))
-    )
+    total_electorate: int
+    totalized_electorate: int
+    e_val = data.get("e", data.get("eleitorado", 0))
+    if isinstance(e_val, dict):
+        total_electorate = _to_int(e_val.get("te", e_val.get("e", 0)))
+        totalized_electorate = _to_int(e_val.get("est", e_val.get("ea", 0)))
+    else:
+        total_electorate = _to_int(e_val)
+        totalized_electorate = _to_int(
+            data.get("ea", data.get("e_tot", data.get("eleitorado_apurado", 0)))
+        )
     pending_electorate = max(0, total_electorate - totalized_electorate)
 
-    total_sections = _to_int(data.get("sec_tot", data.get("secoes_total", data.get("te", 0))))
-    totalized_sections = _to_int(
-        data.get("sec_apu", data.get("secoes_apuradas", data.get("ea_sec", 0)))
-    )
+    total_sections: int
+    totalized_sections: int
+    s_val = data.get("s", data.get("sec", 0))
+    if isinstance(s_val, dict):
+        total_sections = _to_int(s_val.get("ts", s_val.get("te", 0)))
+        totalized_sections = _to_int(s_val.get("st", s_val.get("ea_sec", s_val.get("s", 0))))
+    else:
+        total_sections = _to_int(data.get("sec_tot", data.get("secoes_total", data.get("te", 0))))
+        totalized_sections = _to_int(
+            data.get("sec_apu", data.get("secoes_apuradas", data.get("ea_sec", data.get("s", 0))))
+        )
     pending_sections = max(0, total_sections - totalized_sections)
 
-    valid_votes = _to_int(data.get("vv", data.get("votos_validos", data.get("v", 0))))
-    blank_votes = _to_int(data.get("vb", data.get("votos_brancos", 0)))
-    null_votes = _to_int(data.get("vn", data.get("votos_nulos", 0)))
+    valid_votes: int
+    blank_votes: int
+    null_votes: int
+    v_val = data.get("v", 0)
+    if isinstance(v_val, dict):
+        valid_votes = _to_int(v_val.get("vv", v_val.get("v", 0)))
+        blank_votes = _to_int(v_val.get("vb", 0))
+        null_votes = _to_int(v_val.get("vn", 0))
+    else:
+        valid_votes = _to_int(data.get("vv", data.get("votos_validos", data.get("v", 0))))
+        blank_votes = _to_int(data.get("vb", data.get("votos_brancos", 0)))
+        null_votes = _to_int(data.get("vn", data.get("votos_nulos", 0)))
 
     # Agrupamento das candidaturas
-    cand_votes_raw = data.get("cand", data.get("cands", []))
+    cand_votes_raw = data.get("cand", data.get("cands"))
+    if cand_votes_raw is None and "carg" in data:
+        cand_list: list[dict[str, object]] = []
+        carg_list = data.get("carg")
+        if isinstance(carg_list, list):
+            for carg_item in carg_list:
+                if not isinstance(carg_item, dict):
+                    continue
+                agr_list = carg_item.get("agr")
+                if isinstance(agr_list, list):
+                    for agr_item in agr_list:
+                        if not isinstance(agr_item, dict):
+                            continue
+                        par_list = agr_item.get("par")
+                        if isinstance(par_list, list):
+                            for par_item in par_list:
+                                if not isinstance(par_item, dict):
+                                    continue
+                                cands_in_par = par_item.get("cand")
+                                if isinstance(cands_in_par, list):
+                                    for c_entry in cands_in_par:
+                                        if isinstance(c_entry, dict):
+                                            cand_list.append(c_entry)
+        cand_votes_raw = cand_list
+    elif cand_votes_raw is None:
+        cand_votes_raw = []
     if round_num == 2:
         group_votes_counter: dict[str, int] = {"PT": 0, "PL": 0}
     else:

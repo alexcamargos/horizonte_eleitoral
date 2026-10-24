@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from pytest_mock import MockerFixture
 
 from horizonte_eleitoral.cli import main
 
@@ -376,3 +377,83 @@ def test_cli_help_flag(capsys: pytest.CaptureFixture[str]) -> None:
     captured = capsys.readouterr()
     assert "Horizonte Eleitoral - Sistema de Projecao Eleitoral de 2026." in captured.out
     assert "--simulate-2026-2t-pct" in captured.out
+    assert "--poll-continuous" in captured.out
+
+
+def test_cli_poll_tse_live_single_cycle(
+    capsys: pytest.CaptureFixture[str],
+    mocker: MockerFixture,
+) -> None:
+    """Valida execucao de consulta pontual a API do TSE via CLI."""
+    from datetime import UTC, datetime
+
+    from horizonte_eleitoral.domain.enums import ArtifactType
+    from horizonte_eleitoral.domain.models import RawArtifactRequest
+
+    mock_resp = RawArtifactRequest(
+        election_id="6258",
+        artifact_type=ArtifactType.EA20,
+        source_url="https://resultados.tse.jus.br/oficial/ele2026/6258/dados/br/br-c0001-e006258-u.json",
+        collected_at=datetime.now(UTC),
+        http_status=200,
+        body=(
+            b'{"ele":"6258","t":"2","tpabr":"br","cdabr":"br",'
+            b'"s":{"ts":"499248","st":"0"},"e":{"te":"158745502","est":"0"},'
+            b'"v":{"vv":"0","vb":"0","vn":"0"},"carg":[]}'
+        ),
+        headers=(),
+    )
+
+    from horizonte_eleitoral.ingestion.client import TSEAsyncClient
+
+    mocker.patch.object(TSEAsyncClient, "fetch", return_value=mock_resp)
+
+    main(["--poll-tse-live", "--synthetic", "--ignore-time-gate", "--max-cycles", "1"])
+    captured = capsys.readouterr()
+    assert "HORIZONTE ELEITORAL" in captured.out
+    assert "Ciclo #1" in captured.out
+    assert "Conectado" in captured.out
+
+
+def test_cli_poll_continuous_cycles(
+    capsys: pytest.CaptureFixture[str],
+    mocker: MockerFixture,
+) -> None:
+    """Valida execucao do modo continuo com multiplos ciclos via CLI."""
+    from datetime import UTC, datetime
+
+    from horizonte_eleitoral.domain.enums import ArtifactType
+    from horizonte_eleitoral.domain.models import RawArtifactRequest
+
+    mock_resp = RawArtifactRequest(
+        election_id="6258",
+        artifact_type=ArtifactType.EA20,
+        source_url="https://resultados.tse.jus.br/oficial/ele2026/6258/dados/br/br-c0001-e006258-u.json",
+        collected_at=datetime.now(UTC),
+        http_status=200,
+        body=(
+            b'{"ele":"6258","t":"2","tpabr":"br","cdabr":"br",'
+            b'"s":{"ts":"499248","st":"0"},"e":{"te":"158745502","est":"0"},'
+            b'"v":{"vv":"0","vb":"0","vn":"0"},"carg":[]}'
+        ),
+        headers=(),
+    )
+
+    from horizonte_eleitoral.ingestion.client import TSEAsyncClient
+
+    mocker.patch.object(TSEAsyncClient, "fetch", return_value=mock_resp)
+
+    main(
+        [
+            "--poll-continuous",
+            "--poll-interval",
+            "1",
+            "--max-cycles",
+            "2",
+            "--synthetic",
+            "--ignore-time-gate",
+        ]
+    )
+    captured = capsys.readouterr()
+    assert "Ciclo #1" in captured.out
+    assert "Ciclo #2" in captured.out

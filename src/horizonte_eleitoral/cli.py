@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
+import json
 import sys
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from horizonte_eleitoral.backtest.compare import format_comparison_table, run_v1_v2_comparison
-from horizonte_eleitoral.config import load_settings
+from horizonte_eleitoral.config import Settings, load_settings
 from horizonte_eleitoral.historical.elasticity import MunicipalElasticityIndex
 from horizonte_eleitoral.ingestion.real_data_loader import RealDataLoader
 from horizonte_eleitoral.simulation.election_night_runner import (
@@ -196,6 +200,159 @@ def _run_and_print_checkpoint(
         )
 
 
+def _handle_tse_polling(
+    settings: Settings,
+    args: argparse.Namespace,
+    data_dir: Path,
+) -> None:
+    """Executa a rotina de consulta pontual ou monitoramento continuo na API do TSE.
+
+    Args:
+        settings: Objeto Settings contendo parametros validados da aplicacao.
+        args: Argumentos parseados da linha de comando CLI.
+        data_dir: Diretorio base para catalogo analitico e persistencia.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    from horizonte_eleitoral.ingestion.client import TSEAsyncClient
+    from horizonte_eleitoral.ingestion.discovery import TSEPathResolver
+    from horizonte_eleitoral.ingestion.tse_live_poller import TSELivePoller
+
+    election_id = args.election_id or settings.tse_election_id_2t
+    endpoint_type = args.endpoint_type or settings.tse_endpoint_type
+    target_url = args.tse_url or settings.tse_target_url
+    ignore_gate = args.ignore_time_gate or settings.ignore_schedule_gate
+    interval = args.poll_interval or settings.tse_poll_interval_seconds
+    is_continuous = args.poll_continuous or (
+        args.poll_interval is not None and args.max_cycles != 1
+    )
+
+    tse_client = TSEAsyncClient(settings)
+    resolver = TSEPathResolver(
+        base_url="https://resultados.tse.jus.br",
+        election_id=election_id,
+    )
+    poller = TSELivePoller(
+        client=tse_client,
+        resolver=resolver,
+        election_id=election_id,
+        round_num=2,
+        ignore_schedule_gate=ignore_gate,
+        target_url=target_url,
+        endpoint_type=endpoint_type,
+    )
+
+    resolved_url = poller.get_target_url()
+
+    sections_catalog: list[dict[str, Any]] | None = None
+    if not args.synthetic:
+        try:
+            sections_catalog = _resolve_and_load_real_catalog(
+                data_dir_str=str(data_dir),
+                historical_file_str=args.historical_file,
+                results_file_str=args.results_file,
+                limit_sections=args.limit_sections,
+                filter_ufs=args.ufs,
+            )
+        except Exception as e:
+            print(
+                f"Aviso: Não foi possível carregar catálogo real ({e}). "
+                "Utilizando seções sintéticas."
+            )
+
+    async def _async_polling_loop() -> None:
+        print("=" * 80)
+        print("HORIZONTE ELEITORAL · SISTEMA DE PROJEÇÃO EM TEMPO REAL (2º TURNO 2026)")
+        print(f"URL Alvo TSE: {resolved_url}")
+        print(f"Eleição TSE: {election_id} | Tipo de Endpoint: {endpoint_type}")
+        print(
+            f"Intervalo de Pull: {interval}s | Modo: "
+            f"{'Contínuo' if is_continuous else 'Consulta Pontual'}"
+        )
+        print(
+            f"Janela Oficial: "
+            f"{'Ignorada (Modo Ensaio)' if ignore_gate else 'Domingo após as 17:00 BRT'}"
+        )
+        print("=" * 80)
+
+        cycle = 0
+        while True:
+            cycle += 1
+            now = datetime.now(UTC)
+            now_br = now.astimezone(ZoneInfo("America/Sao_Paulo"))
+            now_str = now_br.strftime("%H:%M:%S")
+
+            print(f"\n[{now_str} BRT] Ciclo #{cycle}: Consultando API oficial do TSE...")
+            try:
+                cycle_result = await poller.run_poller_cycle(
+                    sections_catalog=sections_catalog,
+                    num_draws=args.draws,
+                    seed=args.seed,
+                    now=now,
+                )
+                msg = cycle_result["message"]
+                has_new = cycle_result["has_new_data"]
+                payload = cycle_result["projection"]
+                print(f"  -> Resultado: {msg}")
+
+                if has_new and payload is not None:
+                    print(f"  -> PROJEÇÃO ATUALIZADA (Projection ID: {payload.projection_id})")
+                    print(f"  -> Eleitorado Apurado: {payload.totalized_electorate_pct:.2f}%")
+                    print("  -> Estimativas dos Grupos:")
+                    for group in payload.groups:
+                        print(
+                            f"     * {group.code:4s}: Observado {group.observed_share:5.2f}% | "
+                            f"Projetado {group.projected_share:5.2f}% | "
+                            f"IC 90%: [{group.q05:5.2f}%, {group.q95:5.2f}%]"
+                        )
+                    try:
+                        out_file = data_dir / "latest_projection_2t.json"
+                        out_dict = {
+                            "projection_id": payload.projection_id,
+                            "published_at": payload.published_at.isoformat(),
+                            "data_observed_at": payload.data_observed_at.isoformat(),
+                            "status": payload.status,
+                            "totalized_electorate_pct": payload.totalized_electorate_pct,
+                            "groups": [
+                                {
+                                    "code": g.code,
+                                    "observed_share": g.observed_share,
+                                    "projected_share": g.projected_share,
+                                    "q05": g.q05,
+                                    "q95": g.q95,
+                                }
+                                for g in payload.groups
+                            ],
+                            "data_quality": payload.data_quality,
+                            "model_version": payload.model_version,
+                            "snapshot_id": payload.snapshot_id,
+                        }
+                        out_file.write_text(json.dumps(out_dict, indent=2), encoding="utf-8")
+                        print(f"  -> Projeção consolidada salva em: {out_file.name}")
+                    except Exception as err:
+                        print(f"  -> Aviso ao salvar projeção em disco: {err}")
+
+            except Exception as err:
+                print(f"  -> Alerta: Falha temporária ao consultar TSE: {err}")
+
+            if not is_continuous or (args.max_cycles and cycle >= args.max_cycles):
+                break
+
+            print(
+                f"  -> Próxima checagem em {interval} segundos (Pressione Ctrl+C para encerrar)..."
+            )
+            await asyncio.sleep(interval)
+
+    try:
+        asyncio.run(_async_polling_loop())
+    except KeyboardInterrupt:
+        print("\nMonitoramento encerrado pelo usuário. Dados e projeções preservados.")
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     """Carrega a configuracao na borda da aplicacao e executa simulacoes ou testes solicitados.
 
@@ -339,6 +496,41 @@ def main(argv: Sequence[str] | None = None) -> None:
         help="Executa uma checagem de dados na API oficial do TSE com o modelo de 2º turno.",
     )
     parser.add_argument(
+        "--poll-continuous",
+        action="store_true",
+        help="Executa monitoramento continuo em loop com pull periodico a cada X segundos.",
+    )
+    parser.add_argument(
+        "--poll-interval",
+        type=int,
+        default=None,
+        help="Intervalo em segundos entre consultas ao TSE (padrao: 60s).",
+    )
+    parser.add_argument(
+        "--election-id",
+        type=str,
+        default=None,
+        help="Identificador oficial da eleicao no TSE (padrao: 6258 para o 2º Turno de 2026).",
+    )
+    parser.add_argument(
+        "--tse-url",
+        type=str,
+        default=None,
+        help="URL completa customizada para consultar resultados no TSE.",
+    )
+    parser.add_argument(
+        "--endpoint-type",
+        choices=["divulgacao", "simplificada", "totalization", "auto"],
+        default=None,
+        help="Tipo de endpoint oficial do TSE (padrao: divulgacao).",
+    )
+    parser.add_argument(
+        "--max-cycles",
+        type=int,
+        default=None,
+        help="Numero maximo de ciclos de polling antes de encerrar (util para testes).",
+    )
+    parser.add_argument(
         "--ignore-time-gate",
         action="store_true",
         help="Ignora a janela de domingo apos as 17h para testes e simulacoes.",
@@ -385,30 +577,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             )
         return
 
-    if args.poll_tse_live:
-        import asyncio
-
-        from horizonte_eleitoral.ingestion.client import TSEAsyncClient
-        from horizonte_eleitoral.ingestion.discovery import TSEPathResolver
-        from horizonte_eleitoral.ingestion.tse_live_poller import TSELivePoller
-
-        print("Iniciando consulta à API oficial do TSE...")
-        tse_client = TSEAsyncClient(settings)
-        resolver = TSEPathResolver(
-            base_url="https://resultados.tse.jus.br",
-            election_id="002026",
-        )
-        poller = TSELivePoller(
-            client=tse_client,
-            resolver=resolver,
-            round_num=2,
-            ignore_schedule_gate=args.ignore_time_gate,
-        )
-        try:
-            has_new, tot, msg = asyncio.run(poller.check_for_updates())
-            print(f"Resultado da checagem: {msg}")
-        except Exception as e:
-            print(f"Erro ao consultar TSE: {e}")
+    if args.poll_tse_live or args.poll_continuous:
+        _handle_tse_polling(settings, args, data_dir)
         return
 
     if args.download_2018:

@@ -209,3 +209,77 @@ async def test_poller_run_cycle_computes_projection_on_new_data(
     group_codes = {g.code for g in proj.groups}
     assert group_codes == {"PL", "PT"}
     assert poller.last_published_payload == proj
+
+
+@pytest.mark.asyncio
+async def test_poller_uses_divulgacao_and_custom_target_url(
+    mock_settings: Settings,
+    mocker: MockerFixture,
+) -> None:
+    """Valida selecao de url de divulgacao e de target_url customizado."""
+    client = TSEAsyncClient(mock_settings)
+    resolver = TSEPathResolver("https://resultados.tse.jus.br", "6258")
+
+    # Poller com endpoint_type='divulgacao'
+    poller_div = TSELivePoller(
+        client,
+        resolver,
+        election_id="6258",
+        endpoint_type="divulgacao",
+        ignore_schedule_gate=True,
+    )
+    assert poller_div.get_target_url() == (
+        "https://resultados.tse.jus.br/oficial/ele2026/6258/dados/br/br-c0001-e006258-u.json"
+    )
+
+    # Poller com target_url explicitamente customizado
+    custom_url = "https://resultados.tse.jus.br/custom/rota/teste.json"
+    poller_custom = TSELivePoller(
+        client,
+        resolver,
+        election_id="6258",
+        target_url=custom_url,
+        ignore_schedule_gate=True,
+    )
+    assert poller_custom.get_target_url() == custom_url
+
+
+@pytest.mark.asyncio
+async def test_poller_handles_zero_votes_as_waiting_status(
+    mock_settings: Settings,
+    mocker: MockerFixture,
+) -> None:
+    """Valida que resposta 200 com 0% e 0 votos mantem status de prontidao sem recalcular."""
+    client = TSEAsyncClient(mock_settings)
+    resolver = TSEPathResolver("https://resultados.tse.jus.br", "6258")
+    poller = TSELivePoller(
+        client,
+        resolver,
+        election_id="6258",
+        endpoint_type="divulgacao",
+        ignore_schedule_gate=True,
+    )
+
+    body_zero = (
+        b'{"ele":"6258","t":"2","tpabr":"br","cdabr":"br",'
+        b'"s":{"ts":"499248","st":"0"},"e":{"te":"158745502","est":"0"},'
+        b'"v":{"vv":"0","vb":"0","vn":"0"},"carg":[{"agr":[{"par":[{"cand":'
+        b'[{"n":"13","vap":"0"},{"n":"22","vap":"0"}]}]}]}]}'
+    )
+    mock_resp = RawArtifactRequest(
+        election_id="6258",
+        artifact_type=ArtifactType.EA20,
+        source_url=poller.get_target_url(),
+        collected_at=datetime.now(UTC),
+        http_status=200,
+        body=body_zero,
+        headers=(),
+    )
+    mocker.patch.object(client, "fetch", return_value=mock_resp)
+
+    has_new, tot, msg = await poller.check_for_updates()
+    assert has_new is False
+    assert tot is not None
+    assert tot.total_sections == 499248
+    assert "Aguardando início da contagem" in msg
+    assert poller.history_log[-1].totalized_electorate_pct == 0.0

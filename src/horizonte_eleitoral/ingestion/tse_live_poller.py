@@ -101,18 +101,22 @@ class TSELivePoller:
         client: TSEAsyncClient,
         resolver: TSEPathResolver,
         *,
-        election_id: str = "002026",
+        election_id: str = "6258",
         round_num: int = 2,
         ignore_schedule_gate: bool = False,
+        target_url: str | None = None,
+        endpoint_type: str = "totalization",
     ) -> None:
         """Inicializa o monitorador com o cliente HTTP, resolvedor e configuracoes de eleicao.
 
         Args:
             client: Instancia configurada de TSEAsyncClient com allowlist e rate limits.
             resolver: Resolvedor canonico de rotas oficiais TSEPathResolver.
-            election_id: Identificador oficial do pleito (ex: '002026').
+            election_id: Identificador oficial do pleito (ex: '6258').
             round_num: Turno da eleicao avaliado (1 ou 2).
             ignore_schedule_gate: Permite ignorar o gate de domingo 17h para testes.
+            target_url: URL completa opcional para forcar endpoint especifico.
+            endpoint_type: Tipo do endpoint ('totalization', 'divulgacao', 'simplificada', 'auto').
 
         Returns:
             None.
@@ -125,6 +129,8 @@ class TSELivePoller:
         self._election_id = election_id
         self._round_num = round_num
         self._ignore_schedule_gate = ignore_schedule_gate
+        self._target_url = target_url
+        self._endpoint_type = endpoint_type
 
         self._last_etag: str | None = None
         self._last_modified: str | None = None
@@ -132,6 +138,26 @@ class TSELivePoller:
         self._last_observed_votes: dict[str, int] = {}
         self._last_published_payload: PublishedProjectionPayload | None = None
         self._history_log: list[TSEPollerLogEntry] = []
+
+    def get_target_url(self) -> str:
+        """Retorna a URL canonica que sera consultada pelo poller.
+
+        Returns:
+            URL resolvida para consulta da totalizacao.
+
+        Raises:
+            None.
+        """
+        if self._target_url:
+            return self._target_url
+        if self._endpoint_type == "divulgacao":
+            return self._resolver.url_for_divulgacao(round_num=self._round_num)
+        if self._endpoint_type == "simplificada":
+            return self._resolver.url_for_divulgacao_simplificada(round_num=self._round_num)
+        if self._endpoint_type == "auto":
+            if "resultados.tse.jus.br" in self._resolver.base_url:
+                return self._resolver.url_for_divulgacao(round_num=self._round_num)
+        return self._resolver.url_for_totalization()
 
     @property
     def last_totalized_pct(self) -> float:
@@ -174,6 +200,8 @@ class TSELivePoller:
         """
         check_time = now if now is not None else datetime.now(UTC)
 
+        target_url = self.get_target_url()
+
         # 1. Verificacao da janela temporal de apuracao (Domingo apos 17h)
         if not is_election_night_window(check_time, ignore_gate=self._ignore_schedule_gate):
             msg = (
@@ -187,14 +215,12 @@ class TSELivePoller:
                     totalized_electorate_pct=self._last_totalized_pct,
                     has_new_data=False,
                     message=msg,
-                    url=self._resolver.url_for_totalization(),
+                    url=target_url,
                 )
             )
             return False, None, msg
 
         # 2. Resolucao da URL oficial do TSE
-        target_url = self._resolver.url_for_totalization()
-
         try:
             raw_response = await self._client.fetch(
                 election_id=self._election_id,
@@ -258,8 +284,29 @@ class TSELivePoller:
         new_last_modified = headers_dict.get("last-modified")
 
         current_votes = dict(totalization.candidate_group_votes)
+
+        # Se ainda nao houve votos e apuracao esta em 0%, mantem status de prontidao sem recalcular
+        if current_pct == 0.0 and sum(current_votes.values()) == 0:
+            msg = (
+                f"Conectado à API oficial do TSE ({totalization.total_sections} seções). "
+                "Aguardando início da contagem dos votos oficiais."
+            )
+            self._history_log.append(
+                TSEPollerLogEntry(
+                    timestamp=check_time,
+                    http_status=200,
+                    totalized_electorate_pct=0.0,
+                    has_new_data=False,
+                    message=msg,
+                    url=target_url,
+                )
+            )
+            return False, totalization, msg
+
         has_new_progress = current_pct > self._last_totalized_pct
-        has_new_votes = current_votes != self._last_observed_votes
+        has_new_votes = (
+            current_votes != self._last_observed_votes and sum(current_votes.values()) > 0
+        )
         has_new_data = (
             has_new_progress or has_new_votes or (self._last_etag is None and current_pct > 0.0)
         )

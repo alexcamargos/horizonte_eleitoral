@@ -8,12 +8,13 @@ Este documento constitui a visão canônica do **Status de Saúde Atual**, da **
 
 | Dimensão | Métrica / Status | Evidência Canônica |
 |---|---|---|
-| **Suíte de Testes Automatizados** | **145 testes passando (100% sucesso)** | `uv run pytest` em 5,8s |
-| **Cobertura de Testes** | Unitários (104), Contrato (6), Integração (15), E2E (11), Swing (12) | Diretório `tests/` |
+| **Suíte de Testes Automatizados** | **159 testes passando (100% sucesso)** | `uv run pytest` em 8,0s |
+| **Cobertura de Testes** | Unitários (118), Contrato (6), Integração (15), E2E (11), Swing (12) | Diretório `tests/` |
 | **Tipagem Estática** | **100% Strict** (zero avisos) | `uv run mypy src` |
 | **Linting e Formatação** | **100% Conforme** PEP 8 | `uv run ruff check .` e `uv run ruff format --check .` |
 | **Versão Mínima de Runtime** | Python 3.12+ (testado em 3.12 e 3.13) | `pyproject.toml` |
 | **Validação com Dados Reais** | **499.206 seções eleitorais** de 2026 | `data/real/catalog_2026.parquet` |
+| **Integração em Tempo Real** | **TSE CDN Oficial 2026 2º Turno (Eleição 6258)** | Poller contínuo e auto-pull periódicos validados |
 | **Precisão Preditiva (2% apurado)** | **MAE = 0,06 pp** no 1º turno (erro de saldo 0,04 pp) | Validação histórica reproduzível |
 
 ---

@@ -209,6 +209,17 @@ def _render_second_round_tab() -> None:
             "fora do horário de votação oficial."
         ),
     )
+    election_id = st.sidebar.text_input(
+        "Código da Eleição 2T TSE:",
+        value=settings.tse_election_id_2t,
+        help="Código oficial do pleito majoritário no TSE (padrão: 6258).",
+    )
+    endpoint_type = st.sidebar.selectbox(
+        "Tipo de Endpoint TSE:",
+        options=["divulgacao", "simplificada", "totalization"],
+        index=0,
+        help="divulgacao (u.json completo), simplificada (r.json) ou totalization (ea20).",
+    )
 
     is_window_active = is_election_night_window(ignore_gate=ignore_gate)
 
@@ -221,13 +232,13 @@ def _render_second_round_tab() -> None:
         status_message=st.session_state.last_status_msg,
     )
 
-    # 2. Painel de Controles e Botao de Disparo Manual
-    st.markdown("#### Ações de Atualização")
-    col_btn, col_sim = st.columns([2, 2])
+    # 2. Painel de Controles e Botoes de Disparo
+    st.markdown("#### Controle de Captura do TSE")
+    col_btn, col_auto, col_int = st.columns([2, 1.5, 1.5])
 
     with col_btn:
         btn_check = st.button(
-            "🔄 Verificar novos dados no TSE e Rodar Projeção",
+            "🔄 Consultar TSE Agora",
             type="primary",
             use_container_width=True,
             help=(
@@ -235,7 +246,23 @@ def _render_second_round_tab() -> None:
             ),
         )
 
-    with col_sim:
+    with col_auto:
+        auto_poll = st.toggle(
+            "⏱️ Auto-Pull Periódico",
+            value=False,
+            help="Executa consultas automáticas periódicas à API oficial do TSE.",
+        )
+
+    with col_int:
+        poll_interval = st.selectbox(
+            "Intervalo de Pull:",
+            options=[15, 30, 60, 120, 300],
+            index=1,
+            format_func=lambda s: f"{s} segundos",
+            help="Frequência de consulta à API do TSE.",
+        )
+
+    with st.expander("🛠️ Simulação Manual de Ensaio (Opcional)", expanded=False):
         sim_step = st.selectbox(
             "Simular avanço de apuração do TSE:",
             options=[10.0, 20.0, 35.0, 50.0, 65.0, 80.0, 95.0, 100.0],
@@ -243,78 +270,117 @@ def _render_second_round_tab() -> None:
             format_func=lambda x: f"Onda TSE: {x:.1f}% do eleitorado apurado",
             help="Seleciona um percentual para simular a chegada de nova totalização do TSE.",
         )
+        btn_sim = st.button("🚀 Forçar Passo Simulado")
 
-    # Execucao do disparo manual
-    if btn_check:
+    def _poll_and_update(sim_pct: float | None = None) -> tuple[bool, str]:
         now_dt = datetime.now(UTC)
         check_time_str = now_dt.strftime("%H:%M:%S UTC")
         st.session_state.last_check_str = check_time_str
 
-        # Cria cliente e poller oficial
         tse_client = TSEAsyncClient(settings)
         resolver = TSEPathResolver(
             base_url="https://resultados.tse.jus.br",
-            election_id="002026",
+            election_id=election_id,
         )
         poller = TSELivePoller(
             client=tse_client,
             resolver=resolver,
+            election_id=election_id,
             round_num=2,
             ignore_schedule_gate=ignore_gate,
+            endpoint_type=endpoint_type,
         )
 
-        with st.spinner("Consultando API oficial do TSE e processando dados..."):
-            try:
-                # Tenta consulta real assincrona
-                has_new, _tot, _status = asyncio.run(poller.check_for_updates(now=now_dt))
-            except Exception:
-                # Fallback amigavel de simulacao quando fora da noite eleitoral real
-                has_new = True
+        try:
+            has_new, _tot, status_msg = asyncio.run(poller.check_for_updates(now=now_dt))
+        except Exception as exc:
+            has_new = False
+            status_msg = f"Aviso de conexão com o TSE: {exc}"
 
-            # Se novos dados foram detectados (ou selecionados na simulacao de ensaio)
-            if has_new or sim_step > float(st.session_state.second_round_pct):
-                new_point = _execute_second_round_step(sim_step)
-                st.session_state.last_status_msg = (
-                    f"Novos dados processados com sucesso! "
-                    f"Totalização oficial em {new_point['x']:.2f}%."
-                )
-                st.session_state.tse_log_entries.append(
-                    {
-                        "Horário": check_time_str,
-                        "Status": 200,
-                        "Apurado (%)": f"{new_point['x']:.2f}%",
-                        "Dados Novos": "Sim",
-                        "Mensagem": "Projeção atualizada com novo percentual.",
-                        "URL": resolver.url_for_totalization(),
-                    }
-                )
-                st.success(f"✅ {st.session_state.last_status_msg}")
-            else:
-                st.session_state.last_status_msg = (
-                    "Consulta ao TSE concluída. Nenhum dado novo disponibilizado. Projeção mantida."
-                )
-                st.session_state.tse_log_entries.append(
-                    {
-                        "Horário": check_time_str,
-                        "Status": 304,
-                        "Apurado (%)": f"{st.session_state.second_round_pct:.2f}%",
-                        "Dados Novos": "Não",
-                        "Mensagem": "Mesmo percentual anterior. Projeção inalterada.",
-                        "URL": resolver.url_for_totalization(),
-                    }
-                )
-                st.info(f"ℹ️ {st.session_state.last_status_msg}")
+        target_pct: float | None = None
+        if has_new and poller.last_totalized_pct > 0.0:
+            target_pct = poller.last_totalized_pct
+        elif sim_pct is not None and sim_pct > float(st.session_state.second_round_pct):
+            target_pct = sim_pct
+            has_new = True
 
-    # 3. Fragmento de verificacao automatica a cada 5 minutos (300 segundos)
-    @st.fragment(run_every=300)
-    def _auto_polling_fragment() -> None:
-        """Fragmento interno que executa polling em segundo plano a cada 5 minutos."""
-        now_f = datetime.now(UTC)
-        if is_election_night_window(now_f, ignore_gate=ignore_gate):
-            st.caption(
-                f"⏱️ Monitoramento automático ativo · Próxima checagem agendada em ~5 min "
-                f"(Última checagem em: {st.session_state.last_check_str})"
+        if has_new and target_pct is not None:
+            new_point = _execute_second_round_step(target_pct)
+            st.session_state.last_status_msg = (
+                f"Novos dados processados com sucesso! "
+                f"Totalização oficial em {new_point['x']:.2f}%."
             )
+            st.session_state.tse_log_entries.append(
+                {
+                    "Horário": check_time_str,
+                    "Status": 200,
+                    "Apurado (%)": f"{new_point['x']:.2f}%",
+                    "Dados Novos": "Sim",
+                    "Mensagem": status_msg,
+                    "URL": poller.get_target_url(),
+                }
+            )
+            return True, st.session_state.last_status_msg
+        else:
+            st.session_state.last_status_msg = status_msg
+            status_code = 304 if "304" in status_msg or "inalterados" in status_msg else 200
+            st.session_state.tse_log_entries.append(
+                {
+                    "Horário": check_time_str,
+                    "Status": status_code,
+                    "Apurado (%)": f"{st.session_state.second_round_pct:.2f}%",
+                    "Dados Novos": "Não",
+                    "Mensagem": status_msg,
+                    "URL": poller.get_target_url(),
+                }
+            )
+            return False, status_msg
+
+    # Execucao do disparo manual
+    if btn_check:
+        with st.spinner("Consultando API oficial do TSE e processando dados..."):
+            has_new, msg = _poll_and_update()
+            if has_new:
+                st.success(f"✅ {msg}")
+            else:
+                st.info(f"ℹ️ {msg}")
+
+    if btn_sim:
+        new_point = _execute_second_round_step(sim_step)
+        st.session_state.last_status_msg = (
+            f"Passo simulado processado! Totalização em {new_point['x']:.2f}%."
+        )
+        st.session_state.tse_log_entries.append(
+            {
+                "Horário": datetime.now(UTC).strftime("%H:%M:%S UTC"),
+                "Status": 200,
+                "Apurado (%)": f"{new_point['x']:.2f}%",
+                "Dados Novos": "Sim",
+                "Mensagem": "Passo simulado disparado pelo operador.",
+                "URL": "simulacao://local",
+            }
+        )
+        st.success(f"✅ {st.session_state.last_status_msg}")
+
+    # 3. Fragmento de verificacao automatica periodica (Auto-Pull)
+    @st.fragment(run_every=poll_interval if auto_poll else None)
+    def _auto_polling_fragment() -> None:
+        """Fragmento interno que executa polling em segundo plano no intervalo selecionado."""
+        now_f = datetime.now(UTC)
+        if auto_poll and is_election_night_window(now_f, ignore_gate=ignore_gate):
+            has_new, msg = _poll_and_update()
+            st.caption(
+                f"⏱️ Auto-pull ativo (a cada {poll_interval}s) · "
+                f"Última checagem: {st.session_state.last_check_str}"
+            )
+            if has_new:
+                st.rerun()
+        elif not auto_poll:
+            st.caption(
+                "⏱️ Auto-pull desativado · Disparo manual disponível acima ou ative o toggle."
+            )
+        else:
+            st.caption("⏳ Aguardando abertura da janela oficial das 17h para auto-pull.")
 
     _auto_polling_fragment()
 

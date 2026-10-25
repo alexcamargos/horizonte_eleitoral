@@ -11,10 +11,13 @@ from horizonte_eleitoral.dashboard.components import (
     render_second_round_candidate_cards,
 )
 from horizonte_eleitoral.dashboard.replay import (
+    build_second_round_live_point,
     build_second_round_replay_point,
     generate_second_round_timeline,
     load_replay_catalog,
 )
+from horizonte_eleitoral.domain.enums import GeographicScope
+from horizonte_eleitoral.normalization.models import NormalizedTotalization
 
 
 def test_build_second_round_chart_empty_and_populated() -> None:
@@ -128,3 +131,100 @@ def test_render_second_round_components_execute_cleanly() -> None:
             }
         ]
     )
+
+
+def test_build_second_round_live_point_with_real_tse_numbers() -> None:
+    """Valida construcao de ponto real do TSE com 0.25% secoes e 0.43% eleitorado.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+
+    Raises:
+        AssertionError: Se os percentuais calculados divergirem da contagem do TSE.
+    """
+    totalization = NormalizedTotalization(
+        scope=GeographicScope.BRAZIL,
+        scope_code="BR",
+        total_electorate=158745502,
+        totalized_electorate=682901,
+        pending_electorate=158745502 - 682901,
+        total_sections=499248,
+        totalized_sections=1225,
+        pending_sections=499248 - 1225,
+        valid_votes=335743,
+        blank_votes=4158,
+        null_votes=5153,
+        candidate_group_votes=(("PL", 142169), ("PT", 193574)),
+    )
+
+    point = build_second_round_live_point(
+        totalization=totalization,
+        time_str="17:06",
+    )
+
+    assert point["t"] == "17:06"
+    assert point["x"] == 0.43
+    assert point["x_sections"] == 0.25
+    assert point["apurado"]["PT"] == 57.66
+    assert point["apurado"]["PL"] == 42.34
+    assert point["valid_votes"] == 335743
+    assert point["totalized_sections"] == 1225
+    assert point["is_live"] is True
+
+    # Como x < 2.0%, projecao consolidada e IC permanecem None (Regra 4)
+    assert point["projecao"] is None
+    assert point["faixa"] is None
+    assert point["win_probability"] is None
+
+    # Renderiza o cartao sem erros
+    render_second_round_candidate_cards(latest_point=point)
+
+
+def test_build_second_round_live_point_above_threshold() -> None:
+    """Valida que ponto do TSE >= 2.0% calcula projecao quando catalogo e fornecido.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+
+    Raises:
+        AssertionError: Se a projecao nao for calculada para x >= 2.0%.
+    """
+    totalization = NormalizedTotalization(
+        scope=GeographicScope.BRAZIL,
+        scope_code="BR",
+        total_electorate=100000,
+        totalized_electorate=5000,
+        pending_electorate=95000,
+        total_sections=400,
+        totalized_sections=20,
+        pending_sections=380,
+        valid_votes=4000,
+        blank_votes=200,
+        null_votes=250,
+        candidate_group_votes=(("PL", 1900), ("PT", 2100)),
+    )
+
+    catalog = load_replay_catalog(limit_sections=30)
+    point = build_second_round_live_point(
+        totalization=totalization,
+        time_str="17:20",
+        catalog=catalog,
+        num_draws=20,
+    )
+
+    assert point["x"] == 5.00
+    assert point["apurado"]["PT"] == 52.50
+    assert point["apurado"]["PL"] == 47.50
+    assert point["projecao"] is not None
+    assert "PT" in point["projecao"]
+    assert "PL" in point["projecao"]
+    assert point["faixa"] is not None
+    assert point["win_probability"] is not None
+
+    render_second_round_candidate_cards(latest_point=point)

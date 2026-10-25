@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import streamlit as st
 
@@ -26,6 +27,7 @@ from horizonte_eleitoral.dashboard.components import (
     render_state_diff_table,
 )
 from horizonte_eleitoral.dashboard.replay import (
+    build_second_round_live_point,
     build_second_round_replay_point,
     generate_replay_timeline,
     generate_state_projections,
@@ -38,6 +40,8 @@ from horizonte_eleitoral.ingestion.tse_live_poller import (
     TSELivePoller,
     is_election_night_window,
 )
+
+BRASILIA_TZ = ZoneInfo("America/Sao_Paulo")
 
 
 @st.cache_resource(show_spinner="Carregando catálogo analítico completo de 2026...")
@@ -144,13 +148,10 @@ def _render_first_round_tab() -> None:
 def _init_second_round_state() -> None:
     """Inicializa as variaveis de estado de sessao necessarias para o 2º Turno."""
     if "second_round_points" not in st.session_state:
-        # Inicializa com marco preliminar inicial de 2º turno
-        catalog = get_replay_catalog()
-        init_point = build_second_round_replay_point(catalog=catalog, wave=0.05, num_draws=100)
-        st.session_state.second_round_points = [init_point]
+        st.session_state.second_round_points = []
 
     if "second_round_pct" not in st.session_state:
-        st.session_state.second_round_pct = 5.0
+        st.session_state.second_round_pct = 0.0
 
     if "tse_log_entries" not in st.session_state:
         st.session_state.tse_log_entries = []
@@ -275,6 +276,7 @@ def _render_second_round_tab() -> None:
     def _poll_and_update(sim_pct: float | None = None) -> tuple[bool, str]:
         now_dt = datetime.now(UTC)
         check_time_str = now_dt.strftime("%H:%M:%S UTC")
+        local_time_str = now_dt.astimezone(BRASILIA_TZ).strftime("%H:%M")
         st.session_state.last_check_str = check_time_str
 
         tse_client = TSEAsyncClient(settings)
@@ -292,23 +294,69 @@ def _render_second_round_tab() -> None:
         )
 
         try:
-            has_new, _tot, status_msg = asyncio.run(poller.check_for_updates(now=now_dt))
+            has_new, tot, status_msg = asyncio.run(poller.check_for_updates(now=now_dt))
         except Exception as exc:
             has_new = False
+            tot = None
             status_msg = f"Aviso de conexão com o TSE: {exc}"
 
-        target_pct: float | None = None
-        if has_new and poller.last_totalized_pct > 0.0:
-            target_pct = poller.last_totalized_pct
-        elif sim_pct is not None and sim_pct > float(st.session_state.second_round_pct):
-            target_pct = sim_pct
-            has_new = True
+        if tot is not None and (tot.valid_votes > 0 or tot.totalized_sections > 0):
+            catalog = (
+                get_replay_catalog()
+                if (tot.totalized_electorate / max(1, tot.total_electorate)) >= 0.02
+                else None
+            )
+            new_point = build_second_round_live_point(
+                totalization=tot,
+                time_str=local_time_str,
+                catalog=catalog,
+            )
+            existing = [
+                p
+                for p in st.session_state.second_round_points
+                if abs(p["x"] - new_point["x"]) < 0.01 and p.get("apurado") == new_point["apurado"]
+            ]
+            if not existing:
+                st.session_state.second_round_points.append(new_point)
+                st.session_state.second_round_points.sort(key=lambda p: float(p["x"]))
 
-        if has_new and target_pct is not None:
-            new_point = _execute_second_round_step(target_pct)
+            st.session_state.second_round_pct = float(new_point["x"])
+
+            if has_new:
+                st.session_state.last_status_msg = (
+                    f"Novos dados processados com sucesso! "
+                    f"Totalização oficial em {new_point['x']:.2f}% do eleitorado "
+                    f"({tot.totalized_sections:,} seções apuradas)."
+                )
+                st.session_state.tse_log_entries.append(
+                    {
+                        "Horário": check_time_str,
+                        "Status": 200,
+                        "Apurado (%)": f"{new_point['x']:.2f}%",
+                        "Dados Novos": "Sim",
+                        "Mensagem": status_msg,
+                        "URL": poller.get_target_url(),
+                    }
+                )
+                return True, st.session_state.last_status_msg
+            else:
+                st.session_state.last_status_msg = status_msg
+                status_code = 304 if "304" in status_msg or "inalterados" in status_msg else 200
+                st.session_state.tse_log_entries.append(
+                    {
+                        "Horário": check_time_str,
+                        "Status": status_code,
+                        "Apurado (%)": f"{st.session_state.second_round_pct:.2f}%",
+                        "Dados Novos": "Não",
+                        "Mensagem": status_msg,
+                        "URL": poller.get_target_url(),
+                    }
+                )
+                return False, status_msg
+        elif sim_pct is not None and sim_pct > float(st.session_state.second_round_pct):
+            new_point = _execute_second_round_step(sim_pct)
             st.session_state.last_status_msg = (
-                f"Novos dados processados com sucesso! "
-                f"Totalização oficial em {new_point['x']:.2f}%."
+                f"Passo simulado processado! Totalização em {new_point['x']:.2f}%."
             )
             st.session_state.tse_log_entries.append(
                 {
@@ -316,14 +364,18 @@ def _render_second_round_tab() -> None:
                     "Status": 200,
                     "Apurado (%)": f"{new_point['x']:.2f}%",
                     "Dados Novos": "Sim",
-                    "Mensagem": status_msg,
-                    "URL": poller.get_target_url(),
+                    "Mensagem": "Passo simulado disparado pelo operador.",
+                    "URL": "simulacao://local",
                 }
             )
             return True, st.session_state.last_status_msg
         else:
             st.session_state.last_status_msg = status_msg
-            status_code = 304 if "304" in status_msg or "inalterados" in status_msg else 200
+            status_code = (
+                304
+                if "304" in status_msg or "inalterados" in status_msg
+                else (503 if "Aviso" in status_msg else 200)
+            )
             st.session_state.tse_log_entries.append(
                 {
                     "Horário": check_time_str,
@@ -335,6 +387,11 @@ def _render_second_round_tab() -> None:
                 }
             )
             return False, status_msg
+
+    # Sincronizacao automatica inicial ao abrir a aba
+    if not st.session_state.second_round_points and "tse_initial_sync_done" not in st.session_state:
+        st.session_state.tse_initial_sync_done = True
+        _poll_and_update()
 
     # Execucao do disparo manual
     if btn_check:

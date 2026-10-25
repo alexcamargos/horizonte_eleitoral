@@ -237,3 +237,40 @@ def test_calibrated_swing_reproduces_observed_in_self_projection(
     legacy = model_factory(SwingEstimator.AGGREGATE).predict(observations=obs, pending=pending)
     legacy_projected = dict(legacy.projected_shares)
     assert max(abs(legacy_projected[g] - observed[g]) for g in observed) > 1e-4
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        NationalSwingBaseline(),
+        UFSwingWithShrinkageBaseline(),
+    ],
+    ids=["baseline_3", "baseline_4"],
+)
+def test_zero_historical_share_not_locked_out(model: ForecastModel) -> None:
+    """Valida que grupo com share historico zero na secao pendente nao sofre zero-lockout."""
+    obs = [
+        SectionObservation(
+            section_id="SP:1:1",
+            state="SP",
+            municipality_code="71072",
+            valid_votes=1000,
+            group_votes=(("PT", 500), ("PL", 400), ("OUTROS", 100)),
+            historical_shares=(("PT", 0.45), ("PL", 0.45), ("OUTROS", 0.10)),
+        )
+    ]
+    pending = [
+        PendingSection(
+            section_id="SP:1:2",
+            state="SP",
+            municipality_code="71072",
+            electorate=200_000,
+            historical_shares=(("PT", 0.5), ("PL", 0.5), ("OUTROS", 0.0)),
+        )
+    ]
+    result = model.predict(observations=obs, pending=pending)
+    proj_votes = dict(result.projected_votes)
+    # OUTROS observou 100 votos; com o piso 1e-5 na secao pendente, projeta votos > 100
+    assert proj_votes["OUTROS"] > 100
+    proj_shares = dict(result.projected_shares)
+    assert proj_shares["OUTROS"] > 0.0

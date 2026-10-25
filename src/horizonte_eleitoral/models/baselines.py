@@ -249,7 +249,7 @@ class NationalSwingBaseline(ForecastModel):
             # Softmax estabilizada numericamente: p[k] = b[k] * exp(delta[k] - c) / sum(...)
             unnorm_p: dict[str, float] = {}
             for g in groups:
-                b_k = hist_dict.get(g, 1.0 / len(groups))
+                b_k = max(hist_dict.get(g, 1.0 / len(groups)), 1e-5)
                 unnorm_p[g] = b_k * math.exp(delta[g] - max_delta_nat)
 
             denom = sum(unnorm_p.values())
@@ -368,7 +368,7 @@ class UFSwingWithShrinkageBaseline(ForecastModel):
 
             unnorm_p: dict[str, float] = {}
             for g in groups:
-                b_k = hist_dict.get(g, 1.0 / len(groups))
+                b_k = max(hist_dict.get(g, 1.0 / len(groups)), 1e-5)
                 unnorm_p[g] = b_k * math.exp(chosen_delta.get(g, 0.0) - max_delta_uf)
 
             denom = sum(unnorm_p.values())

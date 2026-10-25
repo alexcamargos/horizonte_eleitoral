@@ -907,15 +907,33 @@ def render_polling_status_box(
     is_auto_active: bool,
     is_window_open: bool,
     status_message: str = "",
+    *,
+    totalized_sections: int | None = None,
+    total_sections: int | None = None,
+    sections_pct: float | None = None,
+    totalized_electorate: int | None = None,
+    total_electorate: int | None = None,
+    electorate_pct: float | None = None,
+    tse_timestamp_str: str | None = None,
 ) -> None:
     """Renderiza a caixa visual informativa de status da sincronizacao com o TSE.
 
+    Exibe os percentuais e contagens oficiais de secoes totalizadas e eleitorado apurado,
+    com formatacao no padrao brasileiro (pt-BR) e compatibilidade com o portal do TSE.
+
     Args:
         last_check_str: Horario da ultima checagem na API do TSE.
-        current_pct: Percentual atual de eleitorado apurado.
+        current_pct: Percentual atual de apuracao (padrao de compatibilidade).
         is_auto_active: Se o polling automatico a cada 5 min esta ativo.
         is_window_open: Se a janela oficial das 17h de domingo esta aberta.
         status_message: Mensagem detalhada sobre o ultimo retorno da API.
+        totalized_sections: Quantidade de secoes eleitorais ja totalizadas.
+        total_sections: Total geral de secoes eleitorais no pleito.
+        sections_pct: Percentual oficial de secoes totalizadas (ex: 0.25 para 0,25%).
+        totalized_electorate: Total de eleitores aptos nas secoes apuradas.
+        total_electorate: Total nacional de eleitores aptos a votar.
+        electorate_pct: Percentual do eleitorado ja totalizado (ex: 0.43 para 0,43%).
+        tse_timestamp_str: Timestamp oficial emitido pelo TSE (ex: '25/10/2026 17:06:27').
 
     Returns:
         None.
@@ -931,17 +949,88 @@ def render_polling_status_box(
         else "⏳ AGUARDANDO DOMINGO APÓS 17H (HORÁRIO DE BRASÍLIA)"
     )
 
+    tse_time_html = (
+        f' · Atualização TSE: <strong style="color: #0f172a;">{tse_timestamp_str}</strong>'
+        if tse_timestamp_str
+        else ""
+    )
+
     msg_html = (
-        f'<div style="margin-top: 6px; font-size: 0.82rem; color: #475569;">'
+        f'<div style="margin-top: 10px; font-size: 0.82rem; color: #475569;">'
         f"ℹ️ {status_message}</div>"
         if status_message
         else ""
     )
 
+    if totalized_sections is not None and total_sections is not None and total_sections > 0:
+        sec_p = (
+            sections_pct
+            if sections_pct is not None
+            else round((totalized_sections / total_sections) * 100.0, 2)
+        )
+        sec_pct_str = f"{sec_p:.2f}%".replace(".", ",")
+        sec_tot_str = f"{totalized_sections:,}".replace(",", ".")
+        sec_all_str = f"{total_sections:,}".replace(",", ".")
+
+        if (
+            totalized_electorate is not None
+            and total_electorate is not None
+            and total_electorate > 0
+        ):
+            elec_p = (
+                electorate_pct
+                if electorate_pct is not None
+                else round((totalized_electorate / total_electorate) * 100.0, 2)
+            )
+            elec_pct_str = f"{elec_p:.2f}%".replace(".", ",")
+            elec_tot_str = f"{totalized_electorate:,}".replace(",", ".")
+            elec_all_str = f"{total_electorate:,}".replace(",", ".")
+        else:
+            elec_pct_str = f"{current_pct:.2f}%".replace(".", ",")
+            elec_tot_str = "–"
+            elec_all_str = "–"
+
+        lbl_style = (
+            "font-size: 0.78rem; text-transform: uppercase; "
+            "color: #64748b; font-weight: 700; letter-spacing: 0.5px;"
+        )
+        sec_sub = (
+            f'<span style="font-size: 0.90rem; font-weight: 500; color: #475569;">'
+            f"({sec_tot_str} de {sec_all_str})</span>"
+        )
+        elec_sub = (
+            f'<span style="font-size: 0.90rem; font-weight: 500; color: #475569;">'
+            f"({elec_tot_str} de {elec_all_str})</span>"
+        )
+        stats_html = f"""
+        <div style="display: flex; gap: 28px; margin-top: 14px; flex-wrap: wrap;">
+            <div>
+                <div style="{lbl_style}">Seções Totalizadas (TSE Oficial)</div>
+                <div style="font-size: 1.35rem; font-weight: 800; color: #0f172a; margin-top: 2px;">
+                    {sec_pct_str} {sec_sub}
+                </div>
+            </div>
+            <div style="border-left: 1px solid #e2e8f0; padding-left: 24px;">
+                <div style="{lbl_style}">Eleitorado em Seções Apuradas</div>
+                <div style="font-size: 1.35rem; font-weight: 800; color: #0f172a; margin-top: 2px;">
+                    {elec_pct_str} {elec_sub}
+                </div>
+            </div>
+        </div>
+        """
+    else:
+        curr_str = f"{current_pct:.2f}%".replace(".", ",")
+        stats_html = f"""
+        <div style="margin-top: 10px; font-size: 0.90rem; color: #334155;">
+            Totalização Oficial no TSE: <strong style="font-size: 1.1rem; color: #0f172a;">
+            {curr_str}</strong>
+        </div>
+        """
+
     st.markdown(
         f"""
         <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px;
-                    padding: 14px 18px; margin-bottom: 18px;
+                    padding: 16px 20px; margin-bottom: 18px;
                     box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <div style="display: flex; justify-content: space-between; align-items: center;
                         flex-wrap: wrap; gap: 8px;">
@@ -950,13 +1039,10 @@ def render_polling_status_box(
                     {badge_title}
                 </span>
                 <span style="font-size: 0.85rem; color: #64748b;">
-                    Última verificação TSE: <strong>{last_check_str}</strong>
+                    Última verificação: <strong>{last_check_str}</strong>{tse_time_html}
                 </span>
             </div>
-            <div style="margin-top: 10px; font-size: 0.90rem; color: #334155;">
-                Totalização Oficial no TSE: <strong style="font-size: 1.1rem; color: #0f172a;">
-                {current_pct:.2f}%</strong> do eleitorado
-            </div>
+            {stats_html}
             {msg_html}
         </div>
         """,

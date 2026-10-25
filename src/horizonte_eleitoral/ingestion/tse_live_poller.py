@@ -381,7 +381,7 @@ class TSELivePoller:
             }
 
         # Quando ha dados novos, executa a projecao do 2º turno majoritario
-        progress_pct = max(0.01, min(1.0, self._last_totalized_pct / 100.0))
+        progress_pct = max(0.0001, min(1.0, self._last_totalized_pct / 100.0))
 
         payload = simulate_2026_second_round_checkpoint(
             progress_pct=progress_pct,

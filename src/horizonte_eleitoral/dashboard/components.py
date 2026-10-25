@@ -1002,52 +1002,49 @@ def render_polling_status_box(
             f'<span style="font-size: 0.90rem; font-weight: 500; color: #475569;">'
             f"({elec_tot_str} de {elec_all_str})</span>"
         )
-        stats_html = f"""
-        <div style="display: flex; gap: 28px; margin-top: 14px; flex-wrap: wrap;">
-            <div>
-                <div style="{lbl_style}">Seções Totalizadas (TSE Oficial)</div>
-                <div style="font-size: 1.35rem; font-weight: 800; color: #0f172a; margin-top: 2px;">
-                    {sec_pct_str} {sec_sub}
-                </div>
-            </div>
-            <div style="border-left: 1px solid #e2e8f0; padding-left: 24px;">
-                <div style="{lbl_style}">Eleitorado em Seções Apuradas</div>
-                <div style="font-size: 1.35rem; font-weight: 800; color: #0f172a; margin-top: 2px;">
-                    {elec_pct_str} {elec_sub}
-                </div>
-            </div>
-        </div>
-        """
+        stats_html = (
+            '<div style="display: flex; gap: 28px; margin-top: 14px; flex-wrap: wrap;">'
+            "<div>"
+            f'<div style="{lbl_style}">Seções Totalizadas (TSE Oficial)</div>'
+            '<div style="font-size: 1.35rem; font-weight: 800; color: #0f172a; margin-top: 2px;">'
+            f"{sec_pct_str} {sec_sub}"
+            "</div>"
+            "</div>"
+            '<div style="border-left: 1px solid #e2e8f0; padding-left: 24px;">'
+            f'<div style="{lbl_style}">Eleitorado em Seções Apuradas</div>'
+            '<div style="font-size: 1.35rem; font-weight: 800; color: #0f172a; margin-top: 2px;">'
+            f"{elec_pct_str} {elec_sub}"
+            "</div>"
+            "</div>"
+            "</div>"
+        )
     else:
         curr_str = f"{current_pct:.2f}%".replace(".", ",")
-        stats_html = f"""
-        <div style="margin-top: 10px; font-size: 0.90rem; color: #334155;">
-            Totalização Oficial no TSE: <strong style="font-size: 1.1rem; color: #0f172a;">
-            {curr_str}</strong>
-        </div>
-        """
+        stats_html = (
+            '<div style="margin-top: 10px; font-size: 0.90rem; color: #334155;">'
+            'Totalização Oficial no TSE: <strong style="font-size: 1.1rem; color: #0f172a;">'
+            f"{curr_str}</strong>"
+            "</div>"
+        )
 
-    st.markdown(
-        f"""
-        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px;
-                    padding: 16px 20px; margin-bottom: 18px;
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <div style="display: flex; justify-content: space-between; align-items: center;
-                        flex-wrap: wrap; gap: 8px;">
-                <span style="background: {badge_bg}; color: {badge_fg}; font-weight: 700;
-                             padding: 4px 10px; border-radius: 20px; font-size: 0.78rem;">
-                    {badge_title}
-                </span>
-                <span style="font-size: 0.85rem; color: #64748b;">
-                    Última verificação: <strong>{last_check_str}</strong>{tse_time_html}
-                </span>
-            </div>
-            {stats_html}
-            {msg_html}
-        </div>
-        """,
-        unsafe_allow_html=True,
+    container_html = (
+        '<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; '
+        'padding: 16px 20px; margin-bottom: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">'
+        '<div style="display: flex; justify-content: space-between; align-items: center; '
+        'flex-wrap: wrap; gap: 8px;">'
+        f'<span style="background: {badge_bg}; color: {badge_fg}; font-weight: 700; '
+        f'padding: 4px 10px; border-radius: 20px; font-size: 0.78rem;">'
+        f"{badge_title}"
+        "</span>"
+        f'<span style="font-size: 0.85rem; color: #64748b;">'
+        f"Última verificação: <strong>{last_check_str}</strong>{tse_time_html}"
+        "</span>"
+        "</div>"
+        f"{stats_html}"
+        f"{msg_html}"
+        "</div>"
     )
+    st.markdown(container_html, unsafe_allow_html=True)
 
 
 def render_polling_log_table(log_entries: list[dict[str, Any]]) -> None:

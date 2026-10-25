@@ -268,6 +268,7 @@ def test_parquet_catalog_roundtrip_and_filtering(tmp_path: Path) -> None:
     assert len(loaded) == len(catalog)
     assert loaded[0]["section_id"] == catalog[0]["section_id"]
     assert dict(loaded[0]["group_votes"]) == dict(catalog[0]["group_votes"])
+    assert loaded[0]["match_quality"] == catalog[0]["match_quality"]
 
     # Leitura com predicate pushdown por UF
     sp_only = loader.load_catalog_parquet(parquet_file, filter_ufs=["SP"])

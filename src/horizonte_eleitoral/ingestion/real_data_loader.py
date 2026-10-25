@@ -156,11 +156,16 @@ class RealSectionRecord:
         if self.valid_votes < 0:
             raise ValidationError("valid_votes nao pode ser negativo.")
 
-    def to_catalog_dict(self, historical_shares: tuple[tuple[str, float], ...]) -> dict[str, Any]:
+    def to_catalog_dict(
+        self,
+        historical_shares: tuple[tuple[str, float], ...],
+        match_quality: str = "EXACT",
+    ) -> dict[str, Any]:
         """Converte o registro para o formato consumido pelo pipeline de ensaio eleitoral.
 
         Args:
             historical_shares: Proporcoes historicas normalizadas dos grupos politicos.
+            match_quality: Metodo ou classificacao de qualidade do pareamento espacial.
 
         Returns:
             Dicionario compativel com o catalogo de secoes do ensaio eleitoral.
@@ -178,6 +183,7 @@ class RealSectionRecord:
             "valid_votes": self.valid_votes,
             "group_votes": self.group_votes,
             "historical_shares": historical_shares,
+            "match_quality": match_quality,
             "totalized_timestamp": self.totalized_timestamp,
             "sequence_order": self.sequence_order,
         }
@@ -964,7 +970,12 @@ class RealDataLoader:
                 (grp, float(share)) for grp, share in sorted(profile.shares, key=lambda x: x[0])
             )
 
-            catalog_items.append(record.to_catalog_dict(historical_shares=hist_shares))
+            catalog_items.append(
+                record.to_catalog_dict(
+                    historical_shares=hist_shares,
+                    match_quality=str(profile.primary_method.value),
+                )
+            )
 
         # Verifica se os registros de apuracao possuem timestamps distintos preexistentes
         unique_timestamps = {
@@ -1191,6 +1202,9 @@ class RealDataLoader:
         h_outros: list[float] = []
         tss: list[datetime | None] = []
         seqs: list[int] = []
+        match_qualities: list[str] = [
+            str(item.get("match_quality", "EXACT") or "EXACT") for item in catalog
+        ]
 
         for item in catalog:
             g_dict = dict(item.get("group_votes", ()))
@@ -1231,6 +1245,7 @@ class RealDataLoader:
                 "hist_pt": pa.array(h_pts, type=pa.float64()),
                 "hist_pl": pa.array(h_pls, type=pa.float64()),
                 "hist_outros": pa.array(h_outros, type=pa.float64()),
+                "match_quality": pa.array(match_qualities, type=pa.string()),
                 "timestamp": pa.array(tss, type=pa.timestamp("us", tz="UTC")),
                 "sequence_order": pa.array(seqs, type=pa.int32()),
             }
@@ -1303,6 +1318,11 @@ class RealDataLoader:
         h_outros = cols["hist_outros"]
         tss = cols["timestamp"]
         seqs = cols["sequence_order"]
+        match_qualities = (
+            [str(mq or "EXACT") for mq in cols["match_quality"]]
+            if "match_quality" in cols
+            else ["EXACT"] * n
+        )
 
         items: list[dict[str, Any]] = [
             {
@@ -1326,6 +1346,7 @@ class RealDataLoader:
                     ("PL", float(h_pls[i] or 0.0)),
                     ("PT", float(h_pts[i] or 0.0)),
                 ),
+                "match_quality": match_qualities[i],
                 "totalized_timestamp": tss[i],
                 "sequence_order": int(seqs[i] or (i + 1)),
             }

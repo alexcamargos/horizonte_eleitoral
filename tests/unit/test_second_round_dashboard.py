@@ -108,13 +108,27 @@ def test_render_second_round_components_execute_cleanly() -> None:
     ]
     render_second_round_candidate_cards(groups_payload=api_groups)
 
-    # Executa caixa de status
+    # Executa caixa de status com e sem parametros estendidos
     render_polling_status_box(
         last_check_str="18:05:00 UTC",
         current_pct=50.0,
         is_auto_active=True,
         is_window_open=True,
         status_message="Operação normal.",
+    )
+    render_polling_status_box(
+        last_check_str="17:06:31 UTC",
+        current_pct=0.25,
+        is_auto_active=True,
+        is_window_open=True,
+        status_message="Operação normal.",
+        totalized_sections=1225,
+        total_sections=499248,
+        sections_pct=0.25,
+        totalized_electorate=682901,
+        total_electorate=158745502,
+        electorate_pct=0.43,
+        tse_timestamp_str="25/10/2026 17:06:27",
     )
 
     # Executa tabela de log vazia e preenchida
@@ -166,8 +180,9 @@ def test_build_second_round_live_point_with_real_tse_numbers() -> None:
     )
 
     assert point["t"] == "17:06"
-    assert point["x"] == 0.43
+    assert point["x"] == 0.25
     assert point["x_sections"] == 0.25
+    assert point["electorate_pct"] == 0.43
     assert point["apurado"]["PT"] == 57.66
     assert point["apurado"]["PL"] == 42.34
     assert point["valid_votes"] == 335743

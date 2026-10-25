@@ -78,10 +78,32 @@ def test_render_second_round_components_execute_cleanly() -> None:
         "apurado": {"PT": 51.0, "PL": 49.0},
         "projecao": {"PT": 51.5, "PL": 48.5},
         "faixa": {"PT": [50.5, 52.5], "PL": [47.5, 49.5]},
+        "win_probability": {"PT": 0.85, "PL": 0.15},
     }
 
-    # Executa renderizacao dos cards
+    # Executa renderizacao dos cards com latest_point
     render_second_round_candidate_cards(latest_point=sample_point)
+
+    # Executa renderizacao dos cards com groups_payload da API
+    api_groups = [
+        {
+            "code": "PT",
+            "observed_share": 51.0,
+            "projected_share": 51.5,
+            "q05": 50.5,
+            "q95": 52.5,
+            "win_probability": 0.85,
+        },
+        {
+            "code": "PL",
+            "observed_share": 49.0,
+            "projected_share": 48.5,
+            "q05": 47.5,
+            "q95": 49.5,
+            "win_probability": 0.15,
+        },
+    ]
+    render_second_round_candidate_cards(groups_payload=api_groups)
 
     # Executa caixa de status
     render_polling_status_box(

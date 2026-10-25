@@ -732,12 +732,15 @@ def render_second_round_candidate_cards(
     if groups_payload:
         for g in groups_payload:
             code = g.get("code")
+            wp = g.get("win_probability")
+            win_prob_val = float(wp) if wp is not None else None
             if code == "PT":
                 data_pt = {
                     "obs": float(g.get("observed_share", 0.0)),
                     "proj": float(g.get("projected_share", 0.0)),
                     "q05": float(g.get("q05", 0.0)),
                     "q95": float(g.get("q95", 0.0)),
+                    "win_prob": win_prob_val,
                 }
             elif code == "PL":
                 data_pl = {
@@ -745,11 +748,13 @@ def render_second_round_candidate_cards(
                     "proj": float(g.get("projected_share", 0.0)),
                     "q05": float(g.get("q05", 0.0)),
                     "q95": float(g.get("q95", 0.0)),
+                    "win_prob": win_prob_val,
                 }
     elif latest_point:
         ap = latest_point.get("apurado", {})
         pr = latest_point.get("projecao") or {}
         fa = latest_point.get("faixa") or {}
+        wp_map = latest_point.get("win_probability") or {}
 
         data_pt["obs"] = float(ap.get("PT", 0.0))
         if pr and "PT" in pr:
@@ -757,6 +762,8 @@ def render_second_round_candidate_cards(
             if fa and "PT" in fa:
                 data_pt["q05"] = float(fa["PT"][0])
                 data_pt["q95"] = float(fa["PT"][1])
+        if wp_map and "PT" in wp_map:
+            data_pt["win_prob"] = float(wp_map["PT"])
 
         data_pl["obs"] = float(ap.get("PL", 0.0))
         if pr and "PL" in pr:
@@ -764,14 +771,18 @@ def render_second_round_candidate_cards(
             if fa and "PL" in fa:
                 data_pl["q05"] = float(fa["PL"][0])
                 data_pl["q95"] = float(fa["PL"][1])
+        if wp_map and "PL" in wp_map:
+            data_pl["win_prob"] = float(wp_map["PL"])
 
-    # 2. Calculo da probabilidade estatistica de vitoria (maioria absoluta de 50%)
-    proj_pt = data_pt["proj"]
-    proj_pl = data_pl["proj"]
+    # 2. Calculo da probabilidade estatistica de vitoria baseada na simulacao Monte Carlo
+    wp_pt = data_pt.get("win_prob")
+    wp_pl = data_pl.get("win_prob")
 
-    if proj_pt is not None and proj_pl is not None:
-        margin = proj_pt - 50.0
-        # Calibracao empirica suave da probabilidade de vitoria com base na margem
+    if wp_pt is not None and wp_pl is not None:
+        pt_prob_win = max(0.1, min(99.9, round(wp_pt * 100.0, 1)))
+        pl_prob_win = max(0.1, min(99.9, round(wp_pl * 100.0, 1)))
+    elif data_pt["proj"] is not None and data_pl["proj"] is not None:
+        margin = data_pt["proj"] - 50.0
         pt_prob_win = max(1.0, min(99.0, 50.0 + margin * 20.0))
         pl_prob_win = 100.0 - pt_prob_win
     else:

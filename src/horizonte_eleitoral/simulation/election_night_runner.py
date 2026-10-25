@@ -11,7 +11,7 @@ import numpy as np
 from fastapi.testclient import TestClient
 
 from horizonte_eleitoral.api.app import create_app
-from horizonte_eleitoral.domain.enums import GeographicScope
+from horizonte_eleitoral.domain.enums import GeographicScope, MatchQuality
 from horizonte_eleitoral.models import HierarchicalBayesianModel
 from horizonte_eleitoral.models.base import PendingSection, SectionObservation
 from horizonte_eleitoral.normalization.models import (
@@ -238,11 +238,23 @@ def _run_wave_pipeline(
             )
         )
 
+    qualities_map: dict[str, MatchQuality] = {}
+    for s in pending_raw:
+        raw_mq = s.get("match_quality")
+        if raw_mq:
+            try:
+                qualities_map[s["section_id"]] = (
+                    raw_mq if isinstance(raw_mq, MatchQuality) else MatchQuality(str(raw_mq))
+                )
+            except ValueError:
+                qualities_map[s["section_id"]] = MatchQuality.EXACT
+
     summary = simulator.simulate(
         observations=obs_objs,
         pending=pending_objs,
         model=model,
         groups=groups,
+        match_qualities=qualities_map if qualities_map else None,
     )
 
     published_payload = publisher.publish(snapshot=snapshot, simulation=summary)

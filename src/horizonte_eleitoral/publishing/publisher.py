@@ -63,6 +63,7 @@ class AtomicPublisher:
         q05_dict = dict(simulation.q05_shares)
         q95_dict = dict(simulation.q95_shares)
         obs_shares_dict = dict(simulation.observed_shares)
+        win_probs_dict = dict(simulation.candidate_win_probabilities)
 
         groups_detail: list[GroupProjectionDetail] = []
         for code in mean_shares_dict:
@@ -73,6 +74,7 @@ class AtomicPublisher:
                     projected_share=round(mean_shares_dict[code] * 100.0, 2),
                     q05=round(q05_dict.get(code, 0.0) * 100.0, 2),
                     q95=round(q95_dict.get(code, 0.0) * 100.0, 2),
+                    win_probability=round(win_probs_dict.get(code, 0.0), 4),
                 )
             )
 

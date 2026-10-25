@@ -34,11 +34,16 @@ def test_simulate_second_round_checkpoint_structure() -> None:
     total_obs = sum(g.observed_share for g in payload.groups)
     assert 99.9 <= total_obs <= 100.1
 
-    # Consistencia das faixas de credibilidade
+    # Consistencia das faixas de credibilidade e probabilidade de vitoria
+    assert payload.second_round_probability == 0.0
+    total_win_prob = sum(g.win_probability for g in payload.groups)
+    assert total_win_prob == pytest.approx(1.0, abs=1e-3)
+
     for g in payload.groups:
         assert g.q05 <= g.projected_share <= g.q95
         assert 0.0 <= g.q05 <= 100.0
         assert 0.0 <= g.q95 <= 100.0
+        assert 0.0 <= g.win_probability <= 1.0
 
 
 def test_simulate_second_round_with_real_catalog_sample() -> None:

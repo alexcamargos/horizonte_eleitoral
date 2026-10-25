@@ -18,6 +18,7 @@ class GroupProjectionDetail:
         projected_share: Participacao projetada central em percentual [0, 100].
         q05: Limite inferior do IC 90% em percentual [0, 100].
         q95: Limite superior do IC 90% em percentual [0, 100].
+        win_probability: Probabilidade de vitoria do grupo na simulacao [0, 1].
     """
 
     code: str
@@ -25,6 +26,7 @@ class GroupProjectionDetail:
     projected_share: float
     q05: float
     q95: float
+    win_probability: float = 0.0
 
     def to_dict(self) -> dict[str, object]:
         """Converte para dicionario para serializacao externa."""
@@ -34,6 +36,7 @@ class GroupProjectionDetail:
             "projected_share": round(self.projected_share, 2),
             "q05": round(self.q05, 2),
             "q95": round(self.q95, 2),
+            "win_probability": round(self.win_probability, 4),
         }
 
 

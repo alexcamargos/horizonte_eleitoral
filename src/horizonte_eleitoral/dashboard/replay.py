@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
 from horizonte_eleitoral.ingestion.real_data_loader import RealDataLoader
+from horizonte_eleitoral.models.base import SectionObservation
+from horizonte_eleitoral.models.hierarchical import REGIONS_BY_UF
+from horizonte_eleitoral.models.hierarchical_v2 import HierarchicalBayesianModelV2
 from horizonte_eleitoral.simulation.election_night_runner import (
     calculate_wave_cutoff,
     simulate_2026_real_checkpoint,
@@ -270,6 +274,23 @@ def generate_state_projections(
         by_electorate=True,
     )
     observed = catalog[:cutoff]
+    pending = catalog[cutoff:]
+
+    groups = ("OUTROS", "PL", "PT")
+    obs_objs = [
+        SectionObservation(
+            section_id=str(s["section_id"]),
+            state=str(s["state"]),
+            municipality_code=str(s["municipality_code"]),
+            valid_votes=int(s.get("valid_votes", 0) or 0),
+            group_votes=tuple(s.get("group_votes", ())),
+            historical_shares=tuple(s.get("historical_shares", ())),
+        )
+        for s in observed
+    ]
+
+    model = HierarchicalBayesianModelV2(auto_load_default=False)
+    delta_nat, delta_reg, delta_uf, _ = model.estimate_effects(obs_objs, groups)
 
     state_sections: dict[str, list[dict[str, Any]]] = {}
     for s in catalog:
@@ -281,20 +302,61 @@ def generate_state_projections(
         uf = str(s["state"])
         obs_by_state.setdefault(uf, []).append(s)
 
+    pending_by_state: dict[str, list[dict[str, Any]]] = {}
+    for s in pending:
+        uf = str(s["state"])
+        pending_by_state.setdefault(uf, []).append(s)
+
     results: list[dict[str, Any]] = []
     for uf, total_secs in sorted(state_sections.items()):
         obs_secs = obs_by_state.get(uf, [])
-        tot_elec = sum(int(s.get("electorate", 0)) for s in total_secs)
-        obs_elec = sum(int(s.get("electorate", 0)) for s in obs_secs)
+        pend_secs = pending_by_state.get(uf, [])
+        tot_elec = sum(int(s.get("electorate", 0) or 0) for s in total_secs)
+        obs_elec = sum(int(s.get("electorate", 0) or 0) for s in obs_secs)
         pct_apu = round((obs_elec / tot_elec * 100.0) if tot_elec > 0 else 0.0, 1)
 
-        valid_obs = sum(int(s.get("valid_votes", 0)) for s in obs_secs)
+        valid_obs = sum(int(s.get("valid_votes", 0) or 0) for s in obs_secs)
         pt_obs = sum(dict(s.get("group_votes", ())).get("PT", 0) for s in obs_secs)
         pl_obs = sum(dict(s.get("group_votes", ())).get("PL", 0) for s in obs_secs)
 
         poll = DEFAULT_STATE_POLLS.get(uf, {"PT": 45.0, "PL": 45.0, "OUTROS": 10.0})
 
-        if valid_obs > 0:
+        if obs_objs:
+            reg = REGIONS_BY_UF.get(uf, "OUTRA")
+            d_state = delta_uf.get(uf) or delta_reg.get(reg) or delta_nat
+            max_d = max(d_state.values(), default=0.0)
+
+            pend_pt_proj = 0.0
+            pend_pl_proj = 0.0
+            pend_valid_proj = 0.0
+
+            for sec in pend_secs:
+                elec = int(sec.get("electorate", 0) or 0)
+                v_exp = elec * 0.80 * 0.95
+                h_d = dict(sec.get("historical_shares", ()))
+                w_pt = max(float(h_d.get("PT", 0.45)), 1e-5) * math.exp(
+                    d_state.get("PT", 0.0) - max_d
+                )
+                w_pl = max(float(h_d.get("PL", 0.45)), 1e-5) * math.exp(
+                    d_state.get("PL", 0.0) - max_d
+                )
+                w_out = max(float(h_d.get("OUTROS", 0.10)), 1e-5) * math.exp(
+                    d_state.get("OUTROS", 0.0) - max_d
+                )
+                sum_w = w_pt + w_pl + w_out
+                if sum_w > 0.0:
+                    pend_pt_proj += v_exp * (w_pt / sum_w)
+                    pend_pl_proj += v_exp * (w_pl / sum_w)
+                    pend_valid_proj += v_exp
+
+            tot_valid_final = valid_obs + pend_valid_proj
+            if tot_valid_final > 0.0:
+                pt_share = round((pt_obs + pend_pt_proj) / tot_valid_final * 100.0, 2)
+                pl_share = round((pl_obs + pend_pl_proj) / tot_valid_final * 100.0, 2)
+            else:
+                pt_share = round(poll["PT"], 2)
+                pl_share = round(poll["PL"], 2)
+        elif valid_obs > 0:
             pt_share = round(pt_obs / valid_obs * 100.0, 2)
             pl_share = round(pl_obs / valid_obs * 100.0, 2)
         else:
@@ -381,6 +443,16 @@ def build_second_round_replay_point(
         else None
     )
 
+    win_prob = (
+        {
+            code: round(group_map[code].win_probability, 4)
+            for code in ("PT", "PL")
+            if code in group_map
+        }
+        if tem_projecao
+        else None
+    )
+
     hora_base = 17 * 60 + int(wave * 240)
     h_str = f"{hora_base // 60:02d}:{hora_base % 60:02d}"
 
@@ -390,6 +462,7 @@ def build_second_round_replay_point(
         "apurado": apurado,
         "projecao": projecao,
         "faixa": faixa,
+        "win_probability": win_prob,
         "round": 2,
     }
 

@@ -510,22 +510,25 @@ def build_second_round_live_point(
     else:
         apurado = {"PT": 0.0, "PL": 0.0}
 
-    total_elec = totalization.total_electorate
-    x_val = (
-        round((totalization.totalized_electorate / total_elec) * 100.0, 2)
-        if total_elec > 0
-        else 0.0
-    )
-
     total_sec = totalization.total_sections
     x_sections = (
         round((totalization.totalized_sections / total_sec) * 100.0, 2) if total_sec > 0 else 0.0
     )
 
+    total_elec = totalization.total_electorate
+    x_electorate = (
+        round((totalization.totalized_electorate / total_elec) * 100.0, 2)
+        if total_elec > 0
+        else 0.0
+    )
+
+    # O indicador primario oficial de totalizacao do TSE e a fracao de secoes (ex: 0,25%)
+    x_val = x_sections
+
     if time_str is None:
         time_str = datetime.now(UTC).astimezone(BRASILIA_TZ).strftime("%H:%M")
 
-    tem_projecao = x_val >= 2.0
+    tem_projecao = x_electorate >= 2.0
     projecao: dict[str, float] | None = None
     faixa: dict[str, list[float]] | None = None
     win_prob: dict[str, float] | None = None
@@ -535,7 +538,7 @@ def build_second_round_live_point(
             simulate_2026_second_round_checkpoint,
         )
 
-        progress = max(0.001, min(1.0, x_val / 100.0))
+        progress = max(0.001, min(1.0, x_electorate / 100.0))
         payload = simulate_2026_second_round_checkpoint(
             sections_catalog=catalog,
             progress_pct=progress,
@@ -564,6 +567,7 @@ def build_second_round_live_point(
         "t": time_str,
         "x": x_val,
         "x_sections": x_sections,
+        "electorate_pct": x_electorate,
         "apurado": apurado,
         "projecao": projecao,
         "faixa": faixa,
@@ -574,6 +578,7 @@ def build_second_round_live_point(
         "totalized_electorate": totalization.totalized_electorate,
         "total_electorate": totalization.total_electorate,
         "votes": votes_dict,
+        "tse_time": totalization.generation_time,
         "round": 2,
         "is_live": True,
     }

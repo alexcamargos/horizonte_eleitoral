@@ -297,6 +297,10 @@ def normalize_ea20(
         sorted(((grp, votes) for grp, votes in group_votes_counter.items()), key=lambda x: x[0])
     )
 
+    dt_str = str(data.get("dt", "")).strip()
+    ht_str = str(data.get("ht", data.get("hg", ""))).strip()
+    generation_time = f"{dt_str} {ht_str}".strip() if (dt_str or ht_str) else None
+
     return NormalizedTotalization(
         scope=scope,
         scope_code=scope_code,
@@ -310,4 +314,5 @@ def normalize_ea20(
         blank_votes=blank_votes,
         null_votes=null_votes,
         candidate_group_votes=candidate_group_votes,
+        generation_time=generation_time,
     )

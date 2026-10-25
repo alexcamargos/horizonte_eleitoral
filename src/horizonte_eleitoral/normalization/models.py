@@ -78,6 +78,7 @@ class NormalizedTotalization:
     blank_votes: int
     null_votes: int
     candidate_group_votes: tuple[tuple[str, int], ...]
+    generation_time: str | None = None
 
     def __post_init__(self) -> None:
         """Valida invariantes essenciais de totalizacao.

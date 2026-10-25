@@ -4,17 +4,22 @@ from __future__ import annotations
 
 import json
 import math
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from horizonte_eleitoral.ingestion.real_data_loader import RealDataLoader
 from horizonte_eleitoral.models.base import SectionObservation
 from horizonte_eleitoral.models.hierarchical import REGIONS_BY_UF
 from horizonte_eleitoral.models.hierarchical_v2 import HierarchicalBayesianModelV2
+from horizonte_eleitoral.normalization.models import NormalizedTotalization
 from horizonte_eleitoral.simulation.election_night_runner import (
     calculate_wave_cutoff,
     simulate_2026_real_checkpoint,
 )
+
+BRASILIA_TZ = ZoneInfo("America/Sao_Paulo")
 
 # Lista de marcos padronizados de apuracao para a curva de evolucao
 DEFAULT_CHECKPOINTS: tuple[float, ...] = (
@@ -464,6 +469,113 @@ def build_second_round_replay_point(
         "faixa": faixa,
         "win_probability": win_prob,
         "round": 2,
+    }
+
+
+def build_second_round_live_point(
+    totalization: NormalizedTotalization,
+    time_str: str | None = None,
+    catalog: list[dict[str, Any]] | None = None,
+    num_draws: int = 100,
+    seed: int = 42,
+) -> dict[str, Any]:
+    """Constrói ponto da série temporal de apuração do 2º Turno a partir de dados reais do TSE.
+
+    Consome a totalização oficial consolidada (NormalizedTotalization) e calcula
+    os percentuais apurados reais para Lula (PT) e Flávio Bolsonaro (PL).
+    Em conformidade com a Constituição Técnica, projeções e intervalos de credibilidade
+    só são calculados a partir de 2,0% do eleitorado apurado; abaixo desse limiar,
+    permanecem None (preliminares).
+
+    Args:
+        totalization: Objeto normalizado da apuração oficial do TSE.
+        time_str: Horário de leitura (ex: '17:06'). Se None, utiliza hora local BRT.
+        catalog: Catálogo opcional de seções reais para projeção bayesiana quando >= 2.0%.
+        num_draws: Quantidade de sorteios Monte Carlo se calcular projeção.
+        seed: Semente determinística para reproducibilidade.
+
+    Returns:
+        Dicionário com horario t, percentual x, apurado, projecao, faixa e metadados.
+
+    Raises:
+        None.
+    """
+    valid_votes = totalization.valid_votes
+    votes_dict = dict(totalization.candidate_group_votes)
+
+    if valid_votes > 0:
+        apurado = {
+            code: round((votes_dict.get(code, 0) / valid_votes) * 100.0, 2) for code in ("PT", "PL")
+        }
+    else:
+        apurado = {"PT": 0.0, "PL": 0.0}
+
+    total_elec = totalization.total_electorate
+    x_val = (
+        round((totalization.totalized_electorate / total_elec) * 100.0, 2)
+        if total_elec > 0
+        else 0.0
+    )
+
+    total_sec = totalization.total_sections
+    x_sections = (
+        round((totalization.totalized_sections / total_sec) * 100.0, 2) if total_sec > 0 else 0.0
+    )
+
+    if time_str is None:
+        time_str = datetime.now(UTC).astimezone(BRASILIA_TZ).strftime("%H:%M")
+
+    tem_projecao = x_val >= 2.0
+    projecao: dict[str, float] | None = None
+    faixa: dict[str, list[float]] | None = None
+    win_prob: dict[str, float] | None = None
+
+    if tem_projecao and catalog:
+        from horizonte_eleitoral.simulation.election_night_runner import (
+            simulate_2026_second_round_checkpoint,
+        )
+
+        progress = max(0.001, min(1.0, x_val / 100.0))
+        payload = simulate_2026_second_round_checkpoint(
+            sections_catalog=catalog,
+            progress_pct=progress,
+            num_draws=num_draws,
+            seed=seed,
+            by_electorate=True,
+        )
+        group_map = {g.code: g for g in payload.groups}
+        projecao = {
+            code: round(group_map[code].projected_share, 2)
+            for code in ("PT", "PL")
+            if code in group_map
+        }
+        faixa = {
+            code: [round(group_map[code].q05, 2), round(group_map[code].q95, 2)]
+            for code in ("PT", "PL")
+            if code in group_map
+        }
+        win_prob = {
+            code: round(group_map[code].win_probability, 4)
+            for code in ("PT", "PL")
+            if code in group_map
+        }
+
+    return {
+        "t": time_str,
+        "x": x_val,
+        "x_sections": x_sections,
+        "apurado": apurado,
+        "projecao": projecao,
+        "faixa": faixa,
+        "win_probability": win_prob,
+        "valid_votes": valid_votes,
+        "totalized_sections": totalization.totalized_sections,
+        "total_sections": totalization.total_sections,
+        "totalized_electorate": totalization.totalized_electorate,
+        "total_electorate": totalization.total_electorate,
+        "votes": votes_dict,
+        "round": 2,
+        "is_live": True,
     }
 
 

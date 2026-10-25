@@ -224,6 +224,10 @@ def _render_second_round_tab() -> None:
 
     is_window_active = is_election_night_window(ignore_gate=ignore_gate)
 
+    latest_pt = (
+        st.session_state.second_round_points[-1] if st.session_state.second_round_points else None
+    )
+
     # 1. Caixa informativa com o status do monitoramento automatico
     render_polling_status_box(
         last_check_str=st.session_state.last_check_str,
@@ -231,6 +235,13 @@ def _render_second_round_tab() -> None:
         is_auto_active=is_window_active,
         is_window_open=is_window_active,
         status_message=st.session_state.last_status_msg,
+        totalized_sections=latest_pt.get("totalized_sections") if latest_pt else None,
+        total_sections=latest_pt.get("total_sections") if latest_pt else None,
+        sections_pct=latest_pt.get("x_sections") if latest_pt else None,
+        totalized_electorate=latest_pt.get("totalized_electorate") if latest_pt else None,
+        total_electorate=latest_pt.get("total_electorate") if latest_pt else None,
+        electorate_pct=latest_pt.get("electorate_pct") if latest_pt else None,
+        tse_timestamp_str=latest_pt.get("tse_time") if latest_pt else None,
     )
 
     # 2. Painel de Controles e Botoes de Disparo
@@ -322,17 +333,24 @@ def _render_second_round_tab() -> None:
 
             st.session_state.second_round_pct = float(new_point["x"])
 
+            sec_pct_str = f"{new_point['x_sections']:.2f}%".replace(".", ",")
+            elec_pct_str = f"{new_point['electorate_pct']:.2f}%".replace(".", ",")
+            sec_tot_str = f"{tot.totalized_sections:,}".replace(",", ".")
+            sec_all_str = f"{tot.total_sections:,}".replace(",", ".")
+            elec_tot_str = f"{tot.totalized_electorate:,}".replace(",", ".")
+            elec_all_str = f"{tot.total_electorate:,}".replace(",", ".")
+
             if has_new:
                 st.session_state.last_status_msg = (
                     f"Novos dados processados com sucesso! "
-                    f"Totalização oficial em {new_point['x']:.2f}% do eleitorado "
-                    f"({tot.totalized_sections:,} seções apuradas)."
+                    f"Seções totalizadas no TSE: {sec_pct_str} ({sec_tot_str} de {sec_all_str}) "
+                    f"· Eleitorado apurado: {elec_pct_str} ({elec_tot_str} de {elec_all_str})."
                 )
                 st.session_state.tse_log_entries.append(
                     {
                         "Horário": check_time_str,
                         "Status": 200,
-                        "Apurado (%)": f"{new_point['x']:.2f}%",
+                        "Apurado (%)": sec_pct_str,
                         "Dados Novos": "Sim",
                         "Mensagem": status_msg,
                         "URL": poller.get_target_url(),
@@ -340,13 +358,16 @@ def _render_second_round_tab() -> None:
                 )
                 return True, st.session_state.last_status_msg
             else:
-                st.session_state.last_status_msg = status_msg
+                st.session_state.last_status_msg = (
+                    f"Dados oficiais inalterados no TSE: {sec_pct_str} das seções "
+                    f"({sec_tot_str} de {sec_all_str}) · {elec_pct_str} do eleitorado."
+                )
                 status_code = 304 if "304" in status_msg or "inalterados" in status_msg else 200
                 st.session_state.tse_log_entries.append(
                     {
                         "Horário": check_time_str,
                         "Status": status_code,
-                        "Apurado (%)": f"{st.session_state.second_round_pct:.2f}%",
+                        "Apurado (%)": sec_pct_str,
                         "Dados Novos": "Não",
                         "Mensagem": status_msg,
                         "URL": poller.get_target_url(),

@@ -125,6 +125,32 @@ def test_invalid_inputs_raise_validation_error(
         calibrated_logratio_swing(valid, hist, totals, reference_index=ref, pseudo_count=0.0)
 
 
+def test_vote_conservation_mismatch_raises_validation_error() -> None:
+    """Soma de votos validos divergente da soma de votos por grupo lanca ValidationError."""
+    with pytest.raises(ValidationError, match="diverge da soma dos totais"):
+        calibrated_logratio_swing(
+            [100.0, 100.0],
+            [[0.5, 0.5], [0.5, 0.5]],
+            [120.0, 90.0],
+            reference_index=1,
+            pseudo_count=0.0,
+        )
+
+
+def test_non_convergence_raises_invariant_violation_error() -> None:
+    """Se o Newton-Raphson nao convergir no maximo de iteracoes, lanca InvariantViolationError."""
+    with pytest.raises(InvariantViolationError, match="nao convergiu apos"):
+        calibrated_logratio_swing(
+            HETERO_VALID,
+            HETERO_HIST,
+            HETERO_TOTALS,
+            reference_index=2,
+            pseudo_count=0.0,
+            max_iter=0,
+            tol=1e-15,
+        )
+
+
 def test_dispatcher_selects_estimator() -> None:
     """O despachante respeita a estrategia escolhida."""
     args = (HETERO_VALID, HETERO_HIST, HETERO_TOTALS)

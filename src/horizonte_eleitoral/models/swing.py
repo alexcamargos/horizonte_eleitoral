@@ -74,6 +74,13 @@ def _prepare_inputs(
         raise ValidationError("pseudo_count nao pode ser negativo.")
     if (v < 0.0).any() or (h < 0.0).any() or (y < 0.0).any():
         raise ValidationError("Votos e shares historicos nao podem ser negativos.")
+    v_tot = float(v.sum())
+    y_tot = float(y.sum())
+    if abs(v_tot - y_tot) > max(1e-4, 1e-5 * v_tot):
+        raise ValidationError(
+            f"Soma dos votos validos por secao ({v_tot:.2f}) diverge "
+            f"da soma dos totais observados por grupo ({y_tot:.2f})."
+        )
     row_mass = h.sum(axis=1)
     h = np.where(row_mass[:, None] > 0.0, h, 1.0 / n_groups)
     return v, h, y
@@ -209,8 +216,10 @@ def calibrated_logratio_swing(
         except np.linalg.LinAlgError:
             try:
                 step_free = np.linalg.lstsq(h_free, -g_free, rcond=None)[0]
-            except np.linalg.LinAlgError:
-                return tuple(float(d) for d in init)
+            except np.linalg.LinAlgError as err:
+                raise InvariantViolationError(
+                    "Calibracao do swing log-ratio falhou por singularidade matricial."
+                ) from err
         step = np.zeros(n_groups)
         step[free] = step_free
         f0 = objective(delta)
@@ -220,9 +229,13 @@ def calibrated_logratio_swing(
             alpha *= 0.5
         delta = delta + alpha * step
     grad, _ = gradient_hessian(delta)
-    if float(np.abs(grad[free]).max()) <= tol * total * 1e3:
+    max_g = float(np.abs(grad[free]).max())
+    if max_g <= tol * total * 1e3:
         return tuple(float(d) for d in delta)
-    return tuple(float(d) for d in init)
+    raise InvariantViolationError(
+        f"Calibracao do swing log-ratio nao convergiu apos {max_iter} iteracoes "
+        f"(gradiente maximo: {max_g:.2e}, tolerancia: {tol * total * 1e3:.2e})."
+    )
 
 
 def estimate_logratio_swing(

@@ -777,37 +777,78 @@ def render_second_round_candidate_cards(
     # 2. Calculo da probabilidade estatistica de vitoria baseada na simulacao Monte Carlo
     wp_pt = data_pt.get("win_prob")
     wp_pl = data_pl.get("win_prob")
+    has_projection = data_pt["proj"] is not None and data_pl["proj"] is not None
 
     if wp_pt is not None and wp_pl is not None:
         pt_prob_win = max(0.1, min(99.9, round(wp_pt * 100.0, 1)))
         pl_prob_win = max(0.1, min(99.9, round(wp_pl * 100.0, 1)))
-    elif data_pt["proj"] is not None and data_pl["proj"] is not None:
-        margin = data_pt["proj"] - 50.0
+    elif has_projection:
+        margin = float(data_pt["proj"] or 0.0) - 50.0
         pt_prob_win = max(1.0, min(99.0, 50.0 + margin * 20.0))
         pl_prob_win = 100.0 - pt_prob_win
     else:
         pt_prob_win = 50.0
         pl_prob_win = 50.0
 
-    pt_proj_val = fmt_pct(data_pt["proj"]) if data_pt["proj"] else fmt_pct(data_pt["obs"])
+    pt_proj_val = (
+        fmt_pct(data_pt["proj"], decimals=2)
+        if data_pt["proj"]
+        else fmt_pct(data_pt["obs"], decimals=2)
+    )
     pt_ci_val = (
-        f"IC 90%: [{fmt_pct(data_pt['q05'])} – {fmt_pct(data_pt['q95'])}]"
+        f"IC 90%: [{fmt_pct(data_pt['q05'], decimals=2)} – {fmt_pct(data_pt['q95'], decimals=2)}]"
         if data_pt["q05"]
-        else "Aguardando avanço"
+        else "Projeção preliminar (< 2% apurado)"
     )
     pt_bg = "#dcfce7" if pt_prob_win >= 50 else "#f1f5f9"
     pt_color = "#166534" if pt_prob_win >= 50 else "#475569"
     pt_lead = " (Liderança)" if pt_prob_win > 50 else ""
 
-    pl_proj_val = fmt_pct(data_pl["proj"]) if data_pl["proj"] else fmt_pct(data_pl["obs"])
+    pl_proj_val = (
+        fmt_pct(data_pl["proj"], decimals=2)
+        if data_pl["proj"]
+        else fmt_pct(data_pl["obs"], decimals=2)
+    )
     pl_ci_val = (
-        f"IC 90%: [{fmt_pct(data_pl['q05'])} – {fmt_pct(data_pl['q95'])}]"
+        f"IC 90%: [{fmt_pct(data_pl['q05'], decimals=2)} – {fmt_pct(data_pl['q95'], decimals=2)}]"
         if data_pl["q05"]
-        else "Aguardando avanço"
+        else "Projeção preliminar (< 2% apurado)"
     )
     pl_bg = "#dcfce7" if pl_prob_win > 50 else "#f1f5f9"
     pl_color = "#166534" if pl_prob_win > 50 else "#475569"
     pl_lead = " (Liderança)" if pl_prob_win > 50 else ""
+
+    if has_projection:
+        pt_footer_html = (
+            f'<div style="margin-top: 10px; padding: 6px 10px; background: {pt_bg}; '
+            f"border-radius: 6px; font-size: 0.84rem; font-weight: 600; "
+            f'color: {pt_color};">'
+            f"🏆 Chance de Vitória: {pt_prob_win:.1f}%{pt_lead}"
+            f"</div>"
+        )
+        pl_footer_html = (
+            f'<div style="margin-top: 10px; padding: 6px 10px; background: {pl_bg}; '
+            f"border-radius: 6px; font-size: 0.84rem; font-weight: 600; "
+            f'color: {pl_color};">'
+            f"🏆 Chance de Vitória: {pl_prob_win:.1f}%{pl_lead}"
+            f"</div>"
+        )
+    else:
+        preliminar_style = (
+            "margin-top: 10px; padding: 6px 10px; background: #f8fafc; "
+            "border-radius: 6px; font-size: 0.82rem; font-weight: 600; "
+            "color: #64748b; border: 1px dashed #cbd5e1;"
+        )
+        pt_footer_html = (
+            f'<div style="{preliminar_style}">'
+            f"⏳ Projeção consolidada e IC a partir de 2,0% apurado"
+            f"</div>"
+        )
+        pl_footer_html = (
+            f'<div style="{preliminar_style}">'
+            f"⏳ Projeção consolidada e IC a partir de 2,0% apurado"
+            f"</div>"
+        )
 
     col1, col2 = st.columns(2)
 
@@ -827,13 +868,9 @@ def render_second_round_candidate_cards(
                     {pt_ci_val}
                 </div>
                 <div class="card-apurado">
-                    Oficial apurado: <strong>{fmt_pct(data_pt["obs"])}</strong>
+                    Oficial apurado: <strong>{fmt_pct(data_pt["obs"], decimals=2)}</strong>
                 </div>
-                <div style="margin-top: 10px; padding: 6px 10px; background: {pt_bg};
-                            border-radius: 6px; font-size: 0.84rem; font-weight: 600;
-                            color: {pt_color};">
-                    🏆 Chance de Vitória: {pt_prob_win:.1f}%{pt_lead}
-                </div>
+                {pt_footer_html}
             </div>
             """,
             unsafe_allow_html=True,
@@ -855,13 +892,9 @@ def render_second_round_candidate_cards(
                     {pl_ci_val}
                 </div>
                 <div class="card-apurado">
-                    Oficial apurado: <strong>{fmt_pct(data_pl["obs"])}</strong>
+                    Oficial apurado: <strong>{fmt_pct(data_pl["obs"], decimals=2)}</strong>
                 </div>
-                <div style="margin-top: 10px; padding: 6px 10px; background: {pl_bg};
-                            border-radius: 6px; font-size: 0.84rem; font-weight: 600;
-                            color: {pl_color};">
-                    🏆 Chance de Vitória: {pl_prob_win:.1f}%{pl_lead}
-                </div>
+                {pl_footer_html}
             </div>
             """,
             unsafe_allow_html=True,

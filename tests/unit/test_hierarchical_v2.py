@@ -178,3 +178,87 @@ def test_hierarchical_v2_sparse_reporting_stability() -> None:
     shares = dict(result.projected_shares)
     # Com a ancoragem de credibilidade, a secao da Bahia deve preservar maioria do PT
     assert shares["PT"] > shares["PL"]
+
+
+def test_hierarchical_v2_lazy_elasticity_loading() -> None:
+    """Verifica que o indice de elasticidade so e carregado se shrinkage_muni for ativo."""
+    # Sem shrinkage municipal, elasticity_index deve permanecer None para evitar I/O desnecessario
+    model_no_muni = HierarchicalBayesianModelV2(shrinkage_muni=None, auto_load_default=True)
+    assert model_no_muni._elasticity_index is None
+
+    # Com shrinkage municipal ativo e auto_load_default=False, permanece None
+    model_manual = HierarchicalBayesianModelV2(shrinkage_muni=10.0, auto_load_default=False)
+    assert model_manual._elasticity_index is None
+
+
+def test_hierarchical_v2_municipal_shrinkage_and_elasticity() -> None:
+    """Verifica a estimacao de efeitos municipais com e sem indice de elasticidade."""
+    obs = _make_sample_observations()
+    pending = _make_sample_pending()
+    groups = ("OUTROS", "PL", "PT")
+
+    # 1. Sem indice de elasticidade (volatilidade padrao 0.05)
+    model_default_vol = HierarchicalBayesianModelV2(
+        shrinkage_muni=10.0,
+        auto_load_default=False,
+    )
+    d_nat, d_reg, d_uf, d_muni = model_default_vol.estimate_effects(obs, groups)
+    assert len(d_muni) == 2
+    assert "SP:71072" in d_muni
+    assert "BA:38490" in d_muni
+
+    res_default = model_default_vol.predict(observations=obs, pending=pending, groups=groups)
+    assert res_default.total_projected_valid > 0
+
+    # 2. Com indice de elasticidade customizado (alta volatilidade -> maior encolhimento para UF)
+    prof_volatile = MunicipalElasticityProfile(
+        municipality_key="SP:71072",
+        state="SP",
+        municipality_code="71072",
+        valid_votes_2018=10000,
+        valid_votes_2022=12000,
+        pt_share_2018=0.25,
+        pt_share_2022=0.40,
+        pl_share_2018=0.65,
+        pl_share_2022=0.50,
+        pt_swing=0.15,
+        pl_swing=-0.15,
+        volatility=0.80,
+    )
+    prof_stable = MunicipalElasticityProfile(
+        municipality_key="SP:71072",
+        state="SP",
+        municipality_code="71072",
+        valid_votes_2018=10000,
+        valid_votes_2022=12000,
+        pt_share_2018=0.25,
+        pt_share_2022=0.40,
+        pl_share_2018=0.65,
+        pl_share_2022=0.50,
+        pt_swing=0.15,
+        pl_swing=-0.15,
+        volatility=0.01,
+    )
+
+    idx_vol = MunicipalElasticityIndex(profiles={"SP:71072": prof_volatile})
+    model_vol = HierarchicalBayesianModelV2(
+        elasticity_index=idx_vol,
+        shrinkage_muni=10.0,
+        elasticity_sensitivity=5.0,
+    )
+    _, _, _, d_muni_vol = model_vol.estimate_effects(obs, groups)
+
+    idx_stable = MunicipalElasticityIndex(profiles={"SP:71072": prof_stable})
+    model_stable = HierarchicalBayesianModelV2(
+        elasticity_index=idx_stable,
+        shrinkage_muni=10.0,
+        elasticity_sensitivity=5.0,
+    )
+    _, _, d_uf_stable, d_muni_stable = model_stable.estimate_effects(obs, groups)
+
+    # Municipio estavel preserva mais do swing local (distancia do efeito estadual e maior)
+    # Municipio volatil encolhe mais em direcao ao estado (distancia do efeito estadual e menor)
+    uf_sp = d_uf_stable["SP"]["PT"]
+    diff_stable = abs(d_muni_stable["SP:71072"]["PT"] - uf_sp)
+    diff_vol = abs(d_muni_vol["SP:71072"]["PT"] - uf_sp)
+    assert diff_vol < diff_stable

@@ -93,7 +93,12 @@ class HierarchicalBayesianModelV2(ForecastModel):
         Raises:
             None.
         """
-        if elasticity_index is None and auto_load_default:
+        if (
+            elasticity_index is None
+            and auto_load_default
+            and shrinkage_muni is not None
+            and shrinkage_muni > 0
+        ):
             self._elasticity_index = get_default_elasticity_index()
         else:
             self._elasticity_index = elasticity_index
@@ -279,7 +284,7 @@ class HierarchicalBayesianModelV2(ForecastModel):
                 if self._elasticity_index is not None:
                     vol = self._elasticity_index.get_volatility(muni, state=uf)
 
-                effective_k_muni = self._k_muni / (1.0 + self._sensitivity * vol)
+                effective_k_muni = self._k_muni * (1.0 + self._sensitivity * vol)
                 lambda_m = count / (count + effective_k_muni)
                 shrunk_m = lambda_m * raw_m + (1.0 - lambda_m) * parent_arr
                 delta_muni[muni] = {g: float(shrunk_m[idx]) for idx, g in enumerate(groups)}

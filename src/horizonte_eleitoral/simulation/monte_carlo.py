@@ -30,6 +30,7 @@ class SimulationSummary:
         total_projected_valid_mean: Total medio de votos validos projetados no pais.
         num_draws: Numero de sorteios Monte Carlo realizados.
         seed: Semente pseudo-aleatoria empregada para reproducibilidade.
+        candidate_win_probabilities: Fracao dos sorteios em que cada grupo obteve o maior share.
     """
 
     projected_mean_shares: tuple[tuple[str, float], ...]
@@ -42,6 +43,7 @@ class SimulationSummary:
     total_projected_valid_mean: int
     num_draws: int
     seed: int
+    candidate_win_probabilities: tuple[tuple[str, float], ...] = ()
 
 
 class MonteCarloSimulator:
@@ -241,9 +243,18 @@ class MonteCarloSimulator:
         mean_votes = np.mean(total_votes_sampled, axis=0)
         mean_total_valid = int(round(float(np.mean(total_valid_per_draw))))
 
-        # Segundo turno: proporcao de cenarios onde nenhum candidato supera 50% dos votos validos
-        max_shares_per_draw = np.max(final_shares_sampled, axis=1)
-        second_round_prob = float(np.mean(max_shares_per_draw <= 0.50))
+        # Segundo turno: proporcao de cenarios onde nenhum candidato supera 50% dos votos validos.
+        # Em eleicoes com <= 2 grupos (ex.: 2o turno majoritario), probabilidade de 2o turno e 0.0.
+        if num_groups <= 2:
+            second_round_prob = 0.0
+        else:
+            max_shares_per_draw = np.max(final_shares_sampled, axis=1)
+            second_round_prob = float(np.mean(max_shares_per_draw <= 0.50))
+
+        # Probabilidade de vitoria por candidato (fracao dos sorteios onde liderou)
+        winners = np.argmax(final_shares_sampled, axis=1)
+        win_counts = np.bincount(winners, minlength=num_groups)
+        win_probs = win_counts / float(self._num_draws)
 
         return SimulationSummary(
             projected_mean_shares=tuple(
@@ -283,4 +294,10 @@ class MonteCarloSimulator:
             total_projected_valid_mean=mean_total_valid,
             num_draws=self._num_draws,
             seed=self._seed,
+            candidate_win_probabilities=tuple(
+                sorted(
+                    ((groups[j], round(float(win_probs[j]), 4)) for j in range(num_groups)),
+                    key=lambda x: x[0],
+                )
+            ),
         )

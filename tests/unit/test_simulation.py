@@ -1,6 +1,7 @@
 """Testes unitarios para simulacao de Monte Carlo, comparecimento e intervalos preditivos."""
 
 import numpy as np
+import pytest
 
 from horizonte_eleitoral.domain.enums import MatchQuality
 from horizonte_eleitoral.models.base import PendingSection, SectionObservation
@@ -182,3 +183,35 @@ def test_monte_carlo_finite_population_correction_uncertainty() -> None:
     # e com 0% pendente a incerteza e estritamente nula.
     assert width_a > width_b > width_c
     assert width_c == 0.0
+
+
+def test_monte_carlo_candidate_win_probabilities() -> None:
+    """Valida calculo e consistencia das probabilidades de vitoria por candidato."""
+    obs = [
+        SectionObservation(
+            section_id="SP:1:1",
+            state="SP",
+            municipality_code="71072",
+            valid_votes=500,
+            group_votes=(("PT", 300), ("PL", 150), ("OUTROS", 50)),
+            historical_shares=(("PT", 0.5), ("PL", 0.4), ("OUTROS", 0.1)),
+        )
+    ]
+    pending = [
+        PendingSection(
+            section_id="SP:1:2",
+            state="SP",
+            municipality_code="71072",
+            electorate=600,
+            historical_shares=(("PT", 0.5), ("PL", 0.4), ("OUTROS", 0.1)),
+        )
+    ]
+    model = HierarchicalBayesianModel()
+    simulator = MonteCarloSimulator(num_draws=300, seed=42)
+    summary = simulator.simulate(observations=obs, pending=pending, model=model)
+
+    win_probs = dict(summary.candidate_win_probabilities)
+    assert len(win_probs) == 3
+    assert sum(win_probs.values()) == pytest.approx(1.0, abs=1e-3)
+    assert win_probs["PT"] > win_probs["PL"]
+    assert win_probs["PT"] > win_probs["OUTROS"]

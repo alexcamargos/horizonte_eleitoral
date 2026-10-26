@@ -218,6 +218,8 @@ def _handle_tse_polling(
     Raises:
         None.
     """
+    import httpx
+
     from horizonte_eleitoral.ingestion.client import TSEAsyncClient
     from horizonte_eleitoral.ingestion.discovery import TSEPathResolver
     from horizonte_eleitoral.ingestion.tse_live_poller import TSELivePoller
@@ -231,22 +233,10 @@ def _handle_tse_polling(
         args.poll_interval is not None and args.max_cycles != 1
     )
 
-    tse_client = TSEAsyncClient(settings)
     resolver = TSEPathResolver(
         base_url="https://resultados.tse.jus.br",
         election_id=election_id,
     )
-    poller = TSELivePoller(
-        client=tse_client,
-        resolver=resolver,
-        election_id=election_id,
-        round_num=2,
-        ignore_schedule_gate=ignore_gate,
-        target_url=target_url,
-        endpoint_type=endpoint_type,
-    )
-
-    resolved_url = poller.get_target_url()
 
     sections_catalog: list[dict[str, Any]] | None = None
     if not args.synthetic:
@@ -265,87 +255,103 @@ def _handle_tse_polling(
             )
 
     async def _async_polling_loop() -> None:
-        print("=" * 80)
-        print("HORIZONTE ELEITORAL · SISTEMA DE PROJEÇÃO EM TEMPO REAL (2º TURNO 2026)")
-        print(f"URL Alvo TSE: {resolved_url}")
-        print(f"Eleição TSE: {election_id} | Tipo de Endpoint: {endpoint_type}")
-        print(
-            f"Intervalo de Pull: {interval}s | Modo: "
-            f"{'Contínuo' if is_continuous else 'Consulta Pontual'}"
-        )
-        print(
-            f"Janela Oficial: "
-            f"{'Ignorada (Modo Ensaio)' if ignore_gate else 'Domingo após as 17:00 BRT'}"
-        )
-        print("=" * 80)
-
-        cycle = 0
-        while True:
-            cycle += 1
-            now = datetime.now(UTC)
-            now_br = now.astimezone(ZoneInfo("America/Sao_Paulo"))
-            now_str = now_br.strftime("%H:%M:%S")
-
-            print(f"\n[{now_str} BRT] Ciclo #{cycle}: Consultando API oficial do TSE...")
-            try:
-                cycle_result = await poller.run_poller_cycle(
-                    sections_catalog=sections_catalog,
-                    num_draws=args.draws,
-                    seed=args.seed,
-                    now=now,
-                )
-                msg = cycle_result["message"]
-                has_new = cycle_result["has_new_data"]
-                payload = cycle_result["projection"]
-                print(f"  -> Resultado: {msg}")
-
-                if has_new and payload is not None:
-                    print(f"  -> PROJEÇÃO ATUALIZADA (Projection ID: {payload.projection_id})")
-                    print(f"  -> Eleitorado Apurado: {payload.totalized_electorate_pct:.2f}%")
-                    print("  -> Estimativas dos Grupos:")
-                    for group in payload.groups:
-                        print(
-                            f"     * {group.code:4s}: Observado {group.observed_share:5.2f}% | "
-                            f"Projetado {group.projected_share:5.2f}% | "
-                            f"IC 90%: [{group.q05:5.2f}%, {group.q95:5.2f}%]"
-                        )
-                    try:
-                        out_file = data_dir / "latest_projection_2t.json"
-                        out_dict = {
-                            "projection_id": payload.projection_id,
-                            "published_at": payload.published_at.isoformat(),
-                            "data_observed_at": payload.data_observed_at.isoformat(),
-                            "status": payload.status,
-                            "totalized_electorate_pct": payload.totalized_electorate_pct,
-                            "groups": [
-                                {
-                                    "code": g.code,
-                                    "observed_share": g.observed_share,
-                                    "projected_share": g.projected_share,
-                                    "q05": g.q05,
-                                    "q95": g.q95,
-                                }
-                                for g in payload.groups
-                            ],
-                            "data_quality": payload.data_quality,
-                            "model_version": payload.model_version,
-                            "snapshot_id": payload.snapshot_id,
-                        }
-                        out_file.write_text(json.dumps(out_dict, indent=2), encoding="utf-8")
-                        print(f"  -> Projeção consolidada salva em: {out_file.name}")
-                    except Exception as err:
-                        print(f"  -> Aviso ao salvar projeção em disco: {err}")
-
-            except Exception as err:
-                print(f"  -> Alerta: Falha temporária ao consultar TSE: {err}")
-
-            if not is_continuous or (args.max_cycles and cycle >= args.max_cycles):
-                break
-
-            print(
-                f"  -> Próxima checagem em {interval} segundos (Pressione Ctrl+C para encerrar)..."
+        async with httpx.AsyncClient(timeout=10.0) as hc:
+            tse_client = TSEAsyncClient(settings, http_client=hc)
+            poller = TSELivePoller(
+                client=tse_client,
+                resolver=resolver,
+                election_id=election_id,
+                round_num=2,
+                ignore_schedule_gate=ignore_gate,
+                target_url=target_url,
+                endpoint_type=endpoint_type,
             )
-            await asyncio.sleep(interval)
+            resolved_url = poller.get_target_url()
+
+            print("=" * 80)
+            print("HORIZONTE ELEITORAL · SISTEMA DE PROJEÇÃO EM TEMPO REAL (2º TURNO 2026)")
+            print(f"URL Alvo TSE: {resolved_url}")
+            print(f"Eleição TSE: {election_id} | Tipo de Endpoint: {endpoint_type}")
+            print(
+                f"Intervalo de Pull: {interval}s | Modo: "
+                f"{'Contínuo' if is_continuous else 'Consulta Pontual'}"
+            )
+            print(
+                f"Janela Oficial: "
+                f"{'Ignorada (Modo Ensaio)' if ignore_gate else 'Domingo após as 17:00 BRT'}"
+            )
+            print("=" * 80)
+
+            cycle = 0
+            while True:
+                cycle += 1
+                now = datetime.now(UTC)
+                now_br = now.astimezone(ZoneInfo("America/Sao_Paulo"))
+                now_str = now_br.strftime("%H:%M:%S")
+
+                print(f"\n[{now_str} BRT] Ciclo #{cycle}: Consultando API oficial do TSE...")
+                try:
+                    cycle_result = await poller.run_poller_cycle(
+                        sections_catalog=sections_catalog,
+                        num_draws=args.draws,
+                        seed=args.seed,
+                        now=now,
+                    )
+                    msg = cycle_result["message"]
+                    has_new = cycle_result["has_new_data"]
+                    payload = cycle_result["projection"]
+                    print(f"  -> Resultado: {msg}")
+
+                    if has_new and payload is not None:
+                        print(f"  -> PROJEÇÃO ATUALIZADA (Projection ID: {payload.projection_id})")
+                        print(f"  -> Eleitorado Apurado: {payload.totalized_electorate_pct:.2f}%")
+                        print("  -> Estimativas dos Grupos:")
+                        for group in payload.groups:
+                            print(
+                                f"     * {group.code:4s}: Observado {group.observed_share:5.2f}% | "
+                                f"Projetado {group.projected_share:5.2f}% | "
+                                f"IC 90%: [{group.q05:5.2f}%, {group.q95:5.2f}%] | "
+                                f"Prob. Vitória: {group.win_probability * 100:5.1f}%"
+                            )
+                        try:
+                            out_file = data_dir / "latest_projection_2t.json"
+                            out_dict = {
+                                "projection_id": payload.projection_id,
+                                "published_at": payload.published_at.isoformat(),
+                                "data_observed_at": payload.data_observed_at.isoformat(),
+                                "status": payload.status,
+                                "totalized_electorate_pct": payload.totalized_electorate_pct,
+                                "groups": [
+                                    {
+                                        "code": g.code,
+                                        "observed_share": g.observed_share,
+                                        "projected_share": g.projected_share,
+                                        "q05": g.q05,
+                                        "q95": g.q95,
+                                        "win_probability": g.win_probability,
+                                    }
+                                    for g in payload.groups
+                                ],
+                                "data_quality": payload.data_quality,
+                                "model_version": payload.model_version,
+                                "snapshot_id": payload.snapshot_id,
+                            }
+                            out_file.write_text(json.dumps(out_dict, indent=2), encoding="utf-8")
+                            print(f"  -> Projeção consolidada salva em: {out_file.name}")
+                        except Exception as err:
+                            print(f"  -> Aviso ao salvar projeção em disco: {err}")
+
+                except Exception as err:
+                    print(f"  -> Alerta: Falha temporária ao consultar TSE: {err}")
+
+                if not is_continuous or (args.max_cycles and cycle >= args.max_cycles):
+                    break
+
+                print(
+                    f"  -> Próxima checagem em {interval} segundos "
+                    "(Pressione Ctrl+C para encerrar)..."
+                )
+                await asyncio.sleep(interval)
 
     try:
         asyncio.run(_async_polling_loop())
@@ -535,6 +541,14 @@ def main(argv: Sequence[str] | None = None) -> None:
         action="store_true",
         help="Ignora a janela de domingo apos as 17h para testes e simulacoes.",
     )
+    parser.add_argument(
+        "--build-2026-2t-history",
+        action="store_true",
+        help=(
+            "Consolida os dados oficiais do 2º turno de 2026 da CDN do TSE em "
+            "catalog_2026_2t.parquet e pre-computa checkpoints_2026_2t.json."
+        ),
+    )
 
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
 
@@ -542,6 +556,44 @@ def main(argv: Sequence[str] | None = None) -> None:
     print(f"Horizonte Eleitoral configurado para o ambiente {settings.environment.value}.")
 
     data_dir = Path(args.data_dir)
+
+    if args.build_2026_2t_history:
+        from horizonte_eleitoral.dashboard.replay import precompute_second_round_checkpoints
+        from horizonte_eleitoral.ingestion.second_round_consolidator import (
+            consolidate_and_save_2026_second_round,
+        )
+
+        eid_2t = args.election_id or settings.tse_election_id_2t
+        print(
+            f"Baixando e consolidando dados oficiais do 2º Turno "
+            f"(Eleição {eid_2t}) na CDN do TSE..."
+        )
+        summary_2t = consolidate_and_save_2026_second_round(
+            data_dir=data_dir,
+            election_id=eid_2t,
+        )
+        print(
+            f"Catalogo Parquet do 2º Turno gravado: {summary_2t['catalog_rows_saved']} secoes "
+            f"({summary_2t['municipalities_downloaded']} municipios e "
+            f"{summary_2t['states_downloaded']} UFs oficiais)."
+        )
+        print(
+            f"Resultado Oficial TSE ({summary_2t['sections_pct_tse']:.2f}% secoes): "
+            f"Lula (PT) {summary_2t['official_shares']['PT']:.2f}% vs "
+            f"Flávio Bolsonaro (PL) {summary_2t['official_shares']['PL']:.2f}%"
+        )
+        loader_2t = RealDataLoader()
+        cat_2t = loader_2t.load_catalog_parquet(data_dir / "catalog_2026_2t.parquet")
+        ck_path = data_dir / "checkpoints_2026_2t.json"
+        print(f"Pre-computando marcos de validacao retroativa do 2º Turno em {ck_path.name}...")
+        computed_cks = precompute_second_round_checkpoints(
+            catalog_2t=cat_2t,
+            out_path=ck_path,
+            num_draws=max(300, args.draws),
+            seed=args.seed,
+        )
+        print(f"Concluido! {len(computed_cks)} marcos de validacao salvos em {ck_path}.")
+        return
 
     if args.simulate_2026_2t_pct is not None:
         pct = args.simulate_2026_2t_pct

@@ -27,9 +27,10 @@ Este documento constitui a **Constituição Técnica** do projeto **Horizonte El
 5. **Separação de Responsabilidades e Fronteiras de Isolamento:**
    - **Núcleo Puro sem I/O:** Os pacotes `domain/`, `models/`, `reconciliation/`, `simulation/` e `backtest/` nunca realizam operações de I/O de rede, banco de dados ou interface gráfica, nem leem `os.environ` diretamente. Configurações (`Settings` em `src/horizonte_eleitoral/config.py`) são carregadas exclusivamente nas bordas (`cli.py`, `api/`, `dashboard/`).
    - **Publicação Atômica e API Somente Leitura:** A API FastAPI (`src/horizonte_eleitoral/api/app.py`) é estritamente somente leitura (`/v1/projections/latest`, `/v1/projections/history`, `/v1/projections/{projection_id}`, `/v1/health/data`, `/v1/model-card`), consumindo o `AtomicPublisher` (que realiza troca atômica em memória protegida por `threading.Lock`, mantendo histórico por geografia e ID).
-   - **Dashboard Streamlit em Duas Abas:** O painel (`src/horizonte_eleitoral/dashboard/app.py`) opera de forma desacoplada em duas frentes:
-     1. *Aba 1 (1º Turno · Replay e Validação):* Carrega o catálogo analítico `catalog_2026.parquet` em cache (`@st.cache_resource`) e prioriza marcos pré-computados (`data/real/checkpoints_2026.json`) para evitar recálculo pesado durante a navegação;
-     2. *Aba 2 (2º Turno · Tempo Real TSE):* Realiza checagens controladas via `TSELivePoller` e `TSEAsyncClient`, respeitando *allowlist* HTTPS, *rate limit* Token Bucket (`AsyncRateLimiter`), cabeçalhos condicionais (`If-None-Match` / `If-Modified-Since` com suporte a `HTTP 304`) e a janela oficial de domingo após as 17h BRT (`is_election_night_window`).
+   - **Dashboard Streamlit em Três Abas:** O painel (`src/horizonte_eleitoral/dashboard/app.py`) opera de forma desacoplada em três frentes:
+     1. *Aba 1 (2º Turno · Histórico e Validação Retroativa):* Carrega o catálogo analítico consolidado `catalog_2026_2t.parquet` em cache (`@st.cache_resource`) e utiliza marcos pré-computados (`data/real/checkpoints_2026_2t.json`) para auditar retroativamente, onda a onda, a precisão do modelo frente ao resultado final oficial do TSE (`5.716` municípios e `28` UFs);
+     2. *Aba 2 (1º Turno · Replay e Validação):* Carrega o catálogo analítico `catalog_2026.parquet` em cache (`@st.cache_resource`) e prioriza marcos pré-computados (`data/real/checkpoints_2026.json`) para evitar recálculo pesado durante a navegação;
+     3. *Aba 3 (2º Turno · Tempo Real TSE):* Realiza checagens controladas via `TSELivePoller` e `TSEAsyncClient`, respeitando *allowlist* HTTPS, *rate limit* Token Bucket (`AsyncRateLimiter`), cabeçalhos condicionais (`If-None-Match` / `If-Modified-Since` com suporte a `HTTP 304`) e a janela oficial de domingo após as 17h BRT (`is_election_night_window`).
 
 6. **Modelo Preditivo Padrão (V2) e Performance Colunar (Parquet / DuckDB):**
    - O modelo ativo padrão do projeto é o `HierarchicalBayesianModelV2` (alias `HierarchicalBayesianModel` em `horizonte_eleitoral.models`), que modula o encolhimento (*shrinkage*) municipal pelo `MunicipalElasticityIndex` (2018–2022, salvo em `data/real/elasticity_2018_2022.parquet`). O `HierarchicalBayesianModelV1` permanece arquivado apenas para auditoria e comparação histórica (`--compare-v1-v2`).
@@ -50,7 +51,7 @@ Este documento constitui a **Constituição Técnica** do projeto **Horizonte El
 | **Mapa** | [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md) | O que existe, onde mora cada pacote em `src/horizonte_eleitoral/`, fronteiras e *jump table*. |
 | **Metodologia** | [`docs/METODOLOGIA_ESTATISTICA.md`](docs/METODOLOGIA_ESTATISTICA.md) | Formulação matemática, 4 baselines, modelo hierárquico V2 com elasticidade e simulação Monte Carlo. |
 | **Histórico / ADRs** | [`docs/DECISOES_DE_ENGENHARIA.md`](docs/DECISOES_DE_ENGENHARIA.md) | Decisões duráveis de arquitetura (ADR 001 a ADR 007), justificativas lógicas e *trade-offs*. |
-| **Status & Delete-Zone** | [`docs/STATUS_E_GOVERNANCA.md`](docs/STATUS_E_GOVERNANCA.md) | Saúde atual da suíte (131 testes), *Delete-Zone*, padrões de contribuição e roadmap. |
+| **Status & Delete-Zone** | [`docs/STATUS_E_GOVERNANCA.md`](docs/STATUS_E_GOVERNANCA.md) | Saúde atual da suíte (183 testes), *Delete-Zone*, padrões de contribuição e roadmap. |
 | **Migrações SQL** | [`migrations/README.md`](migrations/README.md) | Regras *append-only* para evolução do schema relacional de auditoria (`migrations/001_foundation.sql`). |
 
 ---

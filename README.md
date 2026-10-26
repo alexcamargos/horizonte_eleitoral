@@ -2,7 +2,7 @@
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Package Manager: uv](https://img.shields.io/badge/package_manager-uv-purple.svg)](https://docs.astral.sh/uv/)
-[![Tests: 131 Passed](https://img.shields.io/badge/tests-131%20passed-brightgreen.svg)](tests/)
+[![Tests: 183 Passed](https://img.shields.io/badge/tests-183%20passed-brightgreen.svg)](tests/)
 [![Type Checker: mypy strict](https://img.shields.io/badge/types-mypy%20strict-blue.svg)](pyproject.toml)
 [![Code Style: ruff](https://img.shields.io/badge/code%20style-ruff-black.svg)](https://github.com/astral-sh/ruff)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -28,12 +28,15 @@ O **Horizonte Eleitoral** resolve este desafio: em vez de assumir que o país vo
 
 - **Modelo Hierárquico Bayesiano V2 (MRP Adaptativo):** Modelação em 4 níveis (Nacional ponderado pelo censo $\rightarrow$ 5 Macro-regiões $\rightarrow$ 27 UFs $\rightarrow$ 5.570+ Municípios).
 - **Índice de Elasticidade Municipal (2018–2022):** Modula o fator de encolhimento bayesiano (*shrinkage*). Municípios com alta volatilidade histórica aprendem mais rápido da eleição atual; municípios estáveis mantêm sólida proteção contra ruído estatístico.
-- **Acurácia Validada em 499.206 Seções Reais:** Validado contra 100% da base oficial de 2026. Apenas a **2,0% do eleitorado apurado**, o modelo projetou **PT 45,46% e PL 46,53%** (o resultado final oficial cravou **45,16% vs 47,03%** — um erro de apenas **0,30 pp**).
-- **Simulação de Monte Carlo com Intervalos de Credibilidade de 90%:** 2.000 sorteios estocásticos vetorizados propagando incertezas macro e micro, gerando faixas preditivas confiáveis $[q_{05}, q_{95}]$ e o cálculo contínuo da **Probabilidade de 2º Turno**.
+- **Acurácia Validada em 499.206 Seções Reais (1º e 2º Turnos de 2026):**
+  - **1º Turno:** Com apenas **2,0% do eleitorado apurado**, o modelo projetou **PT 45,25% e PL 46,99%** frente ao resultado oficial final de **45,16% vs 47,03%** (**MAE = 0,06 pp**).
+  - **2º Turno (100% das seções oficiais TSE · 5.716 municípios):** Reproduz fielmente a suspensão em **0,25%** entre `17h07` e `19h00` BRT (prorrogação do STF) e a retomada após as `19h00` BRT. Às **19h30 (5,0% apurado)** já cravou **PT 51,70% vs PL 48,30%** (`MAE = 0,09 pp`), e durante toda a janela das **19h46 às 20h24** — quando Flávio Bolsonaro liderava a urna bruta (`PL 51,02% vs PT 48,98%` em `25%`) — o Modelo V2 sustentou a vitória de Lula (**51,68% vs 48,32%**, `MAE = 0,11 pp`) rumo ao resultado final homologado (**51,79% vs 48,21%**).
+- **Simulação de Monte Carlo com Intervalos de Credibilidade de 90%:** 2.000 sorteios estocásticos vetorizados propagando incertezas macro e micro, gerando faixas preditivas confiáveis $[q_{05}, q_{95}]$ e probabilidades calibradas de vitória / 2º turno.
 - **Catálogo Colunar Parquet & DuckDB:** Carga de meio milhão de seções em menos de 0,8 segundo e suporte a consultas SQL analíticas em memória instantâneas.
-- **Painel Visual Interativo Streamlit:** Duas abas especializadas:
-  - **Aba 1 (Replay & Validação 1º Turno):** Linha do tempo navegável (1% a 100%), gráficos Altair com faixas de incerteza, cards de candidatos, tabelas estaduais e model card metodológico.
-  - **Aba 2 (Tempo Real 2º Turno Oficial):** Conexão assíncrona oficial à API do TSE com suporte a polling inteligente (ETag 304), disparos manuais e simulação de novas ondas.
+- **Painel Visual Interativo Streamlit:** Três abas especializadas:
+  - **Aba 1 (Histórico & Validação · 2º Turno 2026):** Replay retroativo de 1% a 100% contra os dados reais divulgados pelo TSE (`5.716` municípios), painel executivo de qualidade preditiva, curva de decaimento do erro absoluto (`Modelo V2` vs `Urna Bruta`), auditoria marco a marco e diagnóstico por UF.
+  - **Aba 2 (Replay & Validação · 1º Turno 2026):** Linha do tempo navegável (1% a 100%), gráficos Altair com faixas de incerteza, cards de candidatos, tabelas estaduais e model card metodológico.
+  - **Aba 3 (Tempo Real · 2º Turno Oficial):** Conexão assíncrona oficial à API do TSE com suporte a polling inteligente (ETag 304), disparos manuais e simulação de novas ondas.
 - **Integridade e Governança Imutável:** Cofre de dados brutos com verificação SHA-256, reconciliação estrita (*Failure-Stop* contra dados dessincronizados) e gravação atômica (`tempfile` + `os.replace`).
 
 ---
@@ -78,8 +81,11 @@ uv run horizonte-eleitoral --wave 0.50 --draws 500
 uv run horizonte-eleitoral --simulate-2026-all-10pct
 ```
 
-### Simulação de Marcos do 2º Turno Majoritário
+### Simulação e Consolidação Histórica do 2º Turno Majoritário
 ```powershell
+# Consolidar os 5.716 municipios oficiais da CDN do TSE em catalog_2026_2t.parquet e pre-calcular checkpoints_2026_2t.json
+uv run horizonte-eleitoral --build-2026-2t-history
+
 # Simular com 50% das urnas do 2º turno apuradas
 uv run horizonte-eleitoral --simulate-2026-2t-pct 50.0
 ```
@@ -111,7 +117,7 @@ uv run horizonte-eleitoral --poll-tse-live --ignore-time-gate
 O projeto mantém padrões estritos de engenharia de software com 100% de conformidade:
 
 ```powershell
-# Executar a suite completa de 131 testes automatizados (pytest)
+# Executar a suite completa de 183 testes automatizados (pytest)
 uv run pytest
 
 # Executar testes com relatorio detalhado de cobertura
@@ -158,7 +164,7 @@ horizonte_eleitoral/
 │   ├── simulation/            # Motor Monte Carlo vetorizado e estimativa de comparecimento
 │   └── storage/               # Persistência local append-only e serialização segura
 │
-├── tests/                     # Suíte de Testes Automatizados (131 testes)
+├── tests/                     # Suíte de Testes Automatizados (183 testes)
 │   ├── contract/              # Testes de contrato de domínio e API
 │   ├── e2e/                   # Ensaio operacional ponta a ponta de noite eleitoral
 │   ├── integration/           # Testes de integração entre componentes e persistência

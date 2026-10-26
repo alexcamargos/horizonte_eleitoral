@@ -8,14 +8,14 @@ Este documento constitui a visão canônica do **Status de Saúde Atual**, da **
 
 | Dimensão | Métrica / Status | Evidência Canônica |
 |---|---|---|
-| **Suíte de Testes Automatizados** | **159 testes passando (100% sucesso)** | `uv run pytest` em 8,0s |
-| **Cobertura de Testes** | Unitários (118), Contrato (6), Integração (15), E2E (11), Swing (12) | Diretório `tests/` |
+| **Suíte de Testes Automatizados** | **183 testes passando (100% sucesso)** | `uv run pytest` |
+| **Cobertura de Testes** | Unitários, Contrato, Integração, E2E e Swing | Diretório `tests/` |
 | **Tipagem Estática** | **100% Strict** (zero avisos) | `uv run mypy src` |
 | **Linting e Formatação** | **100% Conforme** PEP 8 | `uv run ruff check .` e `uv run ruff format --check .` |
 | **Versão Mínima de Runtime** | Python 3.12+ (testado em 3.12 e 3.13) | `pyproject.toml` |
-| **Validação com Dados Reais** | **499.206 seções eleitorais** de 2026 | `data/real/catalog_2026.parquet` |
-| **Integração em Tempo Real** | **TSE CDN Oficial 2026 2º Turno (Eleição 6258)** | Poller contínuo e auto-pull periódicos validados |
-| **Precisão Preditiva (2% apurado)** | **MAE = 0,06 pp** no 1º turno (erro de saldo 0,04 pp) | Validação histórica reproduzível |
+| **Validação com Dados Reais** | **499.206 seções eleitorais** (1º e 2º Turnos de 2026) | `catalog_2026.parquet` e `catalog_2026_2t.parquet` (`5.716` municípios TSE) |
+| **Integração em Tempo Real** | **TSE CDN Oficial 2026 2º Turno (Eleição 6258, BR + 28 UFs)** | Condicionamento live aos votos reais do 2T (`second_round_live.py`) |
+| **Precisão Preditiva (Início da Apuração)** | **MAE = 0,06 pp** (1T em 2%) e **MAE = 0,09 pp** (2T em 5% às 19h30) | Validação retroativa pós-19h sem vazamento (`checkpoints_2026_2t.json`) |
 
 ---
 
@@ -31,6 +31,7 @@ Sob as regras de *Living Docs Governance*, a **Delete-Zone** documenta formalmen
 | **Uso de `unittest` ou `unittest.mock`** | O projeto adota testes funcionais modernos com fixtures nativas e tipagem pytest. | `pytest` e `pytest-mock` (fixture `mocker`). | **Estritamente proibido** pelo padrão global do projeto. |
 | **Ajuste artificial de votos para "fechar conta"** | Adulterar contagens para conciliar arquivos com divergência mascara problemas de replicação nos CDNs do TSE. | `ReconciliationEngine` com política de *Failure-Stop* (`SnapshotStatus.INCONSISTENT`). | Nunca revisitar. A inviolabilidade dos dados oficiais é um princípio inegociável. |
 | **Arquivos de planejamento legado (`docs/*.md` antigos)** | `ESPECIFICACAO_TECNICA_DE_IMPLEMENTACAO.md`, `ETAPAS_DE_IMPLEMENTACAO.md` e `PLANO_DE_ORQUESTRACAO.md` continham previsões de implementação antes do desenvolvimento das fases de Parquet, DuckDB, Modelo V2 e 2º Turno. | Nova suíte em `docs/` (`README.md`, `ARQUITETURA.md`, `METODOLOGIA_ESTATISTICA.md`, `DECISOES_DE_ENGENHARIA.md`, `STATUS_E_GOVERNANCA.md`). | Mantidos apenas no histórico do Git. |
+| **Projeção live do 2º Turno sem condicionamento aos votos reais da API TSE** | Reutilizar `group_votes` estáticos do 1º turno do `catalog_2026.parquet` congelava a projeção em ~49,07% PT / 50,93% PL independentemente dos votos apurados no 2º turno. | `project_second_round_live` (`src/horizonte_eleitoral/simulation/second_round_live.py`) condicionado a `NormalizedTotalization` (`BR` + 28 UFs). | **Estritamente proibido** projetar rodadas em tempo real sem injetar os votos reais apurados pelo TSE. |
 
 ---
 
@@ -89,7 +90,7 @@ uv run ruff check .
 # 2. Verificacao estatica de tipos estrita com MyPy
 uv run mypy src
 
-# 3. Execucao de toda a suite de testes (131 testes)
+# 3. Execucao de toda a suite de testes (183 testes)
 uv run pytest
 
 # 4. Execucao com medicao de cobertura de codigo

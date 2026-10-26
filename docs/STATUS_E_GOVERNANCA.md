@@ -8,7 +8,7 @@ Este documento constitui a visão canônica do **Status de Saúde Atual**, da **
 
 | Dimensão | Métrica / Status | Evidência Canônica |
 |---|---|---|
-| **Suíte de Testes Automatizados** | **183 testes passando (100% sucesso)** | `uv run pytest` |
+| **Suíte de Testes Automatizados** | **190 testes passando (100% sucesso)** | `uv run pytest` |
 | **Cobertura de Testes** | Unitários, Contrato, Integração, E2E e Swing | Diretório `tests/` |
 | **Tipagem Estática** | **100% Strict** (zero avisos) | `uv run mypy src` |
 | **Linting e Formatação** | **100% Conforme** PEP 8 | `uv run ruff check .` e `uv run ruff format --check .` |
@@ -90,7 +90,7 @@ uv run ruff check .
 # 2. Verificacao estatica de tipos estrita com MyPy
 uv run mypy src
 
-# 3. Execucao de toda a suite de testes (183 testes)
+# 3. Execucao de toda a suite de testes (190 testes)
 uv run pytest
 
 # 4. Execucao com medicao de cobertura de codigo

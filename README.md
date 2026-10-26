@@ -33,10 +33,10 @@ O **Horizonte Eleitoral** resolve este desafio: em vez de assumir que o país vo
   - **2º Turno (100% das seções oficiais TSE · 5.716 municípios):** Reproduz fielmente a suspensão em **0,25%** entre `17h07` e `19h00` BRT (prorrogação do STF) e a retomada após as `19h00` BRT. Às **19h30 (5,0% apurado)** já cravou **PT 51,70% vs PL 48,30%** (`MAE = 0,09 pp`), e durante toda a janela das **19h46 às 20h24** — quando Flávio Bolsonaro liderava a urna bruta (`PL 51,02% vs PT 48,98%` em `25%`) — o HORIZON-MRP sustentou a vitória de Lula (**51,68% vs 48,32%**, `MAE = 0,11 pp`) rumo ao resultado final homologado (**51,79% vs 48,21%**).
 - **Simulação de Monte Carlo com Intervalos de Credibilidade de 90%:** 2.000 sorteios estocásticos vetorizados propagando incertezas macro e micro, gerando faixas preditivas confiáveis $[q_{05}, q_{95}]$ e probabilidades calibradas de vitória / 2º turno.
 - **Catálogo Colunar Parquet & DuckDB:** Carga de meio milhão de seções em menos de 0,8 segundo e suporte a consultas SQL analíticas em memória instantâneas.
-- **Painel Visual Interativo Streamlit:** Três abas especializadas:
-  - **Aba 1 (Histórico & Validação · 2º Turno 2026):** Replay retroativo de 1% a 100% contra os dados reais divulgados pelo TSE (`5.716` municípios), painel executivo de qualidade preditiva, curva de decaimento do erro absoluto (`HORIZON-MRP` vs `Urna Bruta`), auditoria marco a marco e diagnóstico por UF.
-  - **Aba 2 (Replay & Validação · 1º Turno 2026):** Linha do tempo navegável (1% a 100%), gráficos Altair com faixas de incerteza, cards de candidatos, tabelas estaduais e model card metodológico.
-  - **Aba 3 (Tempo Real · 2º Turno Oficial):** Conexão assíncrona oficial à API do TSE com suporte a polling inteligente (ETag 304), disparos manuais e simulação de novas ondas.
+- **Painel Visual Interativo Streamlit:** Três abas especializadas acompanhadas de documentação geral e metodológica do modelo:
+  - **Aba 1 (Tempo Real · API Oficial TSE):** Monitoramento contínuo em tempo real com filtros por ano e turno da eleição acompanhada, conexão oficial à CDN do TSE (suporte a ETag 304), disparos manuais, auto-pull periódico e simulação de novas ondas.
+  - **Aba 2 (Análise Histórica · 1º Turno 2026):** Linha do tempo navegável (1% a 100%), gráficos Altair com faixas de incerteza, cards de candidatos, probabilidade de 2º turno, tabelas estaduais e diagnóstico por UF.
+  - **Aba 3 (Análise Histórica · 2º Turno 2026):** Replay retroativo de 0,25% a 100% contra os dados reais divulgados pelo TSE (`5.716` municípios), painel executivo de qualidade preditiva, curva de decaimento do erro absoluto (`HORIZON-MRP` vs `Urna Bruta`), auditoria marco a marco e diagnóstico por UF.
 - **Integridade e Governança Imutável:** Cofre de dados brutos com verificação SHA-256, reconciliação estrita (*Failure-Stop* contra dados dessincronizados) e gravação atômica (`tempfile` + `os.replace`).
 
 ---

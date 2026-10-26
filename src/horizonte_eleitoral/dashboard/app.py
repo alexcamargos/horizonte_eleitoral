@@ -188,15 +188,18 @@ def _render_first_round_tab() -> None:
     with st.expander("🗺️ Diferença entre a urna e a pesquisa em cada estado (UFs)"):
         render_state_diff_table(states_data=states_data)
 
-    # Metodologia e Model Card - Exclusivo Modelo Versao 2
+    # Metodologia e Model Card - HORIZON-MRP (Versao 2)
     render_model_card_expander(
         {
-            "model_version": "2026.2 (Bayesiano Multinível V2 - Elasticidade 2018–2022)",
+            "model_version": (
+                "HORIZON-MRP v2026.2 "
+                "(Hierarchical Optimal Regression & Inferred Zonal Outcomes Network)"
+            ),
             "target_error_margin": (
                 "0.5 pp a partir de 2% do eleitorado apurado (validado em 100% da base)"
             ),
             "disclaimer": (
-                "Interface conectada exclusivamente ao Modelo Versão 2. "
+                "Interface conectada exclusivamente ao modelo preditivo HORIZON-MRP. "
                 "A Versão 1 encontra-se arquivada como base legada de auditoria."
             ),
         }
@@ -683,13 +686,13 @@ def _render_second_round_validation_tab() -> None:
     # 2. Cartoes de Candidatos (Lula vs Flavio Bolsonaro) no marco selecionado
     render_second_round_candidate_cards(latest_point=latest_point)
 
-    # 3. Painel de Qualidade e Auditoria Retroativa do Modelo contra o Resultado Oficial TSE
+    # 3. Painel de Qualidade e Auditoria Retroativa do HORIZON-MRP contra o Resultado Oficial TSE
     render_second_round_validation_panel(
         latest_point=latest_point,
         validation_summary=val_summary,
     )
 
-    # 4. Grafico Principal de Evolucao (Apurado TSE vs Projecao V2 vs Gabarito Final)
+    # 4. Grafico Principal de Evolucao (Apurado TSE vs Projecao HORIZON-MRP vs Gabarito Final)
     st.markdown("#### Evolução da Apuração Oficial e Projeção Final · 2º Turno")
     render_chart_guide(round_num=2)
     chart_main = build_second_round_chart(
@@ -698,9 +701,9 @@ def _render_second_round_validation_tab() -> None:
     )
     st.altair_chart(chart_main, use_container_width=True, theme="streamlit")
 
-    # 5. Grafico Comparativo de Erro Absoluto (Modelo V2 vs Urna Bruta)
+    # 5. Grafico Comparativo de Erro Absoluto (HORIZON-MRP vs Urna Bruta)
     st.markdown('<div style="margin-top: 28px;"></div>', unsafe_allow_html=True)
-    st.markdown("#### Qualidade do Modelo: Erro Absoluto ao Longo da Apuração")
+    st.markdown("#### Qualidade do Modelo HORIZON-MRP: Erro Absoluto ao Longo da Apuração")
     st.caption(
         "Distância em pontos percentuais (pp) para o resultado oficial definitivo do TSE. "
         "A linha vertical destaca o marco percentual avaliado no controle acima."
@@ -752,14 +755,16 @@ def _render_second_round_validation_tab() -> None:
     render_model_card_expander(
         {
             "model_version": (
-                "2026.2 (Bayesiano Multinível V2 · Priors 1º Turno 2026 + Elasticidade 2018–2022)"
+                "HORIZON-MRP v2026.2 "
+                "(Hierarchical Optimal Regression & Inferred Zonal Outcomes Network)"
             ),
             "target_error_margin": (
                 "≤ 0.50 pp a partir de 2,0% do eleitorado apurado (zero vazamento temporal)"
             ),
             "disclaimer": (
-                "Auditoria retroativa executada sobre as totalizações municipais e estaduais "
-                "oficiais divulgadas pelo TSE na eleição 6258 (2º Turno Presidencial 2026)."
+                "Auditoria retroativa executada com o modelo HORIZON-MRP sobre as "
+                "totalizações municipais e estaduais oficiais divulgadas pelo TSE "
+                "na eleição 6258 (2º Turno Presidencial 2026)."
             ),
         }
     )
@@ -781,8 +786,10 @@ def render_dashboard() -> None:
         """
         <div class="sidebar-model-badge">
             <div class="model-badge-header">PROJEÇÃO ESTATÍSTICA OFICIAL</div>
-            <div class="model-badge-name">Modelo Bayesiano Multinível V2</div>
-            <div class="model-badge-meta">Elasticidade Municipal 2018–2022 · Apuração TSE</div>
+            <div class="model-badge-name">HORIZON-MRP</div>
+            <div class="model-badge-meta">
+                Hierarchical Optimal Regression & Inferred Zonal Outcomes Network
+            </div>
         </div>
         """,
         unsafe_allow_html=True,

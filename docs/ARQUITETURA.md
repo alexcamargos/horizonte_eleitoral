@@ -48,7 +48,7 @@ flowchart TD
         PUB["AtomicPublisher (tempfile + os.replace atômico)"]
         PUB_STORE[("latest.json / Projections Store")]
         FASTAPI["FastAPI App (API REST Somente Leitura)"]
-        STREAMLIT["Streamlit Dashboard (Duas Abas: 1T Replay & 2T Live)"]
+        STREAMLIT["Streamlit Dashboard (3 Abas: 2T Validação, 1T Replay & 2T Live)"]
     end
 
     TSE_API --> POLLER
@@ -116,14 +116,15 @@ src/horizonte_eleitoral/
 │   ├── compare.py               # Comparador analítico e temporal entre Modelo V1 e Modelo V2
 │   ├── metrics.py               # Cálculo de MAE, Lead Error, Viés e Cobertura
 │   ├── models.py                # Estruturas de dados de resultados de backtest
-│   └── replay.py                # Motor de replay histórico ordenado por tempo/eleitorado
+│   ├── replay.py                # Motor de replay histórico ordenado por tempo/eleitorado
+│   └── second_round_validation.py # Auditoria retroativa pura (Zero Leakage) do 2º Turno
 │
 ├── dashboard/                   # Interface Web Interativa (Streamlit)
-│   ├── app.py                   # Aplicação principal (Abas: 1º Turno Replay e 2º Turno Live)
-│   ├── charts.py                # Gráficos Altair interativos com faixas sombreadas de 90%
+│   ├── app.py                   # Aplicação principal (3 Abas: 2T Validação, 1T Replay e 2T Live)
+│   ├── charts.py                # Gráficos Altair interativos com faixas de 90% e curva de erro
 │   ├── client.py                # Cliente de leitura das projeções publicadas
-│   ├── components.py            # Componentes visuais (cards de candidatos, banner 2T, tabelas)
-│   ├── replay.py                # Funções de geração de linhas do tempo e projeções por UF
+│   ├── components.py            # Componentes visuais (cards, painel de validação 2T, tabelas)
+│   ├── replay.py                # Linhas do tempo pré-computadas e projeções por UF (1T e 2T)
 │   └── styles.py                # Folhas de estilo CSS customizadas para visual editorial
 │
 ├── domain/                      # Núcleo de Domínio Imutável (Zero I/O)
@@ -144,6 +145,7 @@ src/horizonte_eleitoral/
 │   ├── discovery.py             # Resolvedor de URLs e estruturas de diretórios da API do TSE
 │   ├── rate_limiter.py          # Implementação de Token Bucket para proteção de taxa
 │   ├── real_data_loader.py      # Carregamento e exportação analítica Parquet / DuckDB
+│   ├── second_round_consolidator.py # Consolidador oficial dos 5.716 municípios do 2º Turno TSE
 │   └── tse_live_poller.py       # Poller automático de apuração oficial em tempo real
 │
 ├── models/                      # Algoritmos Preditivos de Projeção
@@ -168,9 +170,10 @@ src/horizonte_eleitoral/
 │   ├── models.py                # Estados da reconciliação e diagnósticos de divergência
 │   └── reconciler.py            # Motor de validação que bloqueia snapshots incoerentes
 │
-├── simulation/                  # Simulação Estocástica de Monte Carlo
+├── simulation/                  # Simulação Estocástica de Monte Carlo e Projeção Live 2T
 │   ├── election_night_runner.py # Orquestrador de ensaios ponta a ponta da noite eleitoral
 │   ├── monte_carlo.py           # Simulador vetorizado com bandas de credibilidade de 90%
+│   ├── second_round_live.py     # Motor puro de projeção live 2º Turno condicionado a BR e 28 UFs
 │   └── turnout.py               # Modelos preditivos de comparecimento e abstenção
 │
 └── storage/                     # Persistência Local e Serialização Segura

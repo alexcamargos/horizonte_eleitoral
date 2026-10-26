@@ -283,3 +283,175 @@ async def test_poller_handles_zero_votes_as_waiting_status(
     assert tot.total_sections == 499248
     assert "Aguardando início da contagem" in msg
     assert poller.history_log[-1].totalized_electorate_pct == 0.0
+
+
+@pytest.mark.asyncio
+async def test_poller_fetches_state_totalizations_with_etag_cache_and_404_resilience(
+    mock_settings: Settings,
+    mocker: MockerFixture,
+) -> None:
+    """Valida coleta concorrente por UF com suporte a cache ETag 304 e resiliencia a 404.
+
+    Args:
+        mock_settings: Configuracao de teste isolada.
+        mocker: Fixture pytest-mock para interceptar o cliente HTTP.
+
+    Returns:
+        None.
+
+    Raises:
+        AssertionError: Se UFs validas nao forem parseadas ou o cache 304 falhar.
+    """
+    client = TSEAsyncClient(mock_settings)
+    resolver = TSEPathResolver("https://resultados.tse.jus.br", "6258")
+    poller = TSELivePoller(
+        client,
+        resolver,
+        election_id="6258",
+        endpoint_type="divulgacao",
+        ignore_schedule_gate=True,
+    )
+
+    sp_body = (
+        b'{"ele":"6258","t":"2","tpabr":"uf","cdabr":"sp",'
+        b'"s":{"ts":"105000","st":"90000"},"e":{"te":"34000000","est":"29000000"},'
+        b'"v":{"vv":"23000000","vb":"500000","vn":"800000"},"carg":[{"agr":[{"par":[{"cand":'
+        b'[{"n":"13","vap":"10350000"},{"n":"22","vap":"12650000"}]}]}]}]}'
+    )
+    ba_body = (
+        b'{"ele":"6258","t":"2","tpabr":"uf","cdabr":"ba",'
+        b'"s":{"ts":"35000","st":"25000"},"e":{"te":"11200000","est":"8000000"},'
+        b'"v":{"vv":"6400000","vb":"100000","vn":"200000"},"carg":[{"agr":[{"par":[{"cand":'
+        b'[{"n":"13","vap":"4480000"},{"n":"22","vap":"1920000"}]}]}]}]}'
+    )
+
+    observed_etags: dict[str, str | None] = {}
+
+    async def _fake_fetch(
+        *,
+        election_id: str,
+        artifact_type: ArtifactType,
+        url: str,
+        etag: str | None = None,
+        last_modified: str | None = None,
+    ) -> RawArtifactRequest:
+        observed_etags[url] = etag
+        if "/sp/" in url:
+            if etag == '"etag-sp-1"':
+                return RawArtifactRequest(
+                    election_id=election_id,
+                    artifact_type=artifact_type,
+                    source_url=url,
+                    collected_at=datetime.now(UTC),
+                    http_status=304,
+                    body=b"",
+                    headers=(("etag", '"etag-sp-1"'),),
+                )
+            return RawArtifactRequest(
+                election_id=election_id,
+                artifact_type=artifact_type,
+                source_url=url,
+                collected_at=datetime.now(UTC),
+                http_status=200,
+                body=sp_body,
+                headers=(("etag", '"etag-sp-1"'),),
+            )
+        if "/ba/" in url:
+            return RawArtifactRequest(
+                election_id=election_id,
+                artifact_type=artifact_type,
+                source_url=url,
+                collected_at=datetime.now(UTC),
+                http_status=200,
+                body=ba_body,
+                headers=(("etag", '"etag-ba-1"'),),
+            )
+        return RawArtifactRequest(
+            election_id=election_id,
+            artifact_type=artifact_type,
+            source_url=url,
+            collected_at=datetime.now(UTC),
+            http_status=404,
+            body=b"",
+            headers=(),
+        )
+
+    mocker.patch.object(client, "fetch", side_effect=_fake_fetch)
+
+    res1 = await poller.fetch_state_totalizations(states=("SP", "BA", "ZZ"))
+    assert set(res1.keys()) == {"SP", "BA"}
+    assert res1["SP"].scope_code == "SP"
+    assert dict(res1["BA"].candidate_group_votes)["PT"] == 4480000
+
+    res2 = await poller.fetch_state_totalizations(states=("SP", "BA", "ZZ"))
+    assert set(res2.keys()) == {"SP", "BA"}
+    sp_url = poller.get_state_target_url("SP")
+    assert observed_etags[sp_url] == '"etag-sp-1"'
+
+
+@pytest.mark.asyncio
+async def test_poller_run_cycle_conditions_projection_on_live_2t_votes(
+    mock_settings: Settings,
+    mocker: MockerFixture,
+) -> None:
+    """Valida que run_poller_cycle altera a projecao conforme os votos reais do 2T mudam.
+
+    Args:
+        mock_settings: Configuracao de teste isolada.
+        mocker: Fixture pytest-mock para interceptar o cliente HTTP.
+
+    Returns:
+        None.
+
+    Raises:
+        AssertionError: Se a projecao ignorar a mudanca nos votos reais retornados pelo TSE.
+    """
+    client = TSEAsyncClient(mock_settings)
+    resolver = TSEPathResolver("https://resultados.tse.jus.br", "6258")
+    poller = TSELivePoller(
+        client,
+        resolver,
+        election_id="6258",
+        round_num=2,
+        ignore_schedule_gate=True,
+    )
+
+    # Cenario A: 75% apurado com PL liderando folgado (55% vs 45%)
+    body_pl_lead = (
+        b'{"abrangencia":"BR","sec_tot":100,"sec_apu":75,"e":100000,"ea":75000,"vv":60000,'
+        b'"cand":[{"n":"13","vap":27000},{"n":"22","vap":33000}]}'
+    )
+    resp_a = RawArtifactRequest(
+        election_id="6258",
+        artifact_type=ArtifactType.EA20,
+        source_url=poller.get_target_url(),
+        collected_at=datetime.now(UTC),
+        http_status=200,
+        body=body_pl_lead,
+        headers=(("etag", '"tag-a"'),),
+    )
+    mocker.patch.object(client, "fetch", return_value=resp_a)
+    res_a = await poller.run_poller_cycle(num_draws=100, seed=42)
+    groups_a = {g.code: g for g in res_a["projection"].groups}
+    assert groups_a["PL"].projected_share > groups_a["PT"].projected_share
+
+    # Cenario B: 82% apurado com PT virando e abrindo 52,5% vs 47,5%
+    body_pt_lead = (
+        b'{"abrangencia":"BR","sec_tot":100,"sec_apu":82,"e":100000,"ea":82000,"vv":66000,'
+        b'"cand":[{"n":"13","vap":34650},{"n":"22","vap":31350}]}'
+    )
+    resp_b = RawArtifactRequest(
+        election_id="6258",
+        artifact_type=ArtifactType.EA20,
+        source_url=poller.get_target_url(),
+        collected_at=datetime.now(UTC),
+        http_status=200,
+        body=body_pt_lead,
+        headers=(("etag", '"tag-b"'),),
+    )
+    mocker.patch.object(client, "fetch", return_value=resp_b)
+    res_b = await poller.run_poller_cycle(num_draws=100, seed=42)
+    groups_b = {g.code: g for g in res_b["projection"].groups}
+    assert groups_b["PT"].projected_share > 51.5
+    assert groups_b["PT"].projected_share > groups_b["PL"].projected_share
+    assert groups_b["PT"].win_probability > 0.90

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from horizonte_eleitoral.domain.enums import ArtifactType
+from horizonte_eleitoral.domain.enums import ArtifactType, GeographicScope
 from horizonte_eleitoral.domain.errors import SourceUnavailableError, ValidationError
 from horizonte_eleitoral.ingestion.client import TSEAsyncClient
 from horizonte_eleitoral.ingestion.discovery import TSEPathResolver
@@ -19,6 +21,37 @@ from horizonte_eleitoral.simulation.election_night_runner import (
 )
 
 BRASILIA_TZ = ZoneInfo("America/Sao_Paulo")
+
+ALL_TSE_STATE_CODES: tuple[str, ...] = (
+    "AC",
+    "AL",
+    "AM",
+    "AP",
+    "BA",
+    "CE",
+    "DF",
+    "ES",
+    "GO",
+    "MA",
+    "MG",
+    "MS",
+    "MT",
+    "PA",
+    "PB",
+    "PE",
+    "PI",
+    "PR",
+    "RJ",
+    "RN",
+    "RO",
+    "RR",
+    "RS",
+    "SC",
+    "SE",
+    "SP",
+    "TO",
+    "ZZ",
+)
 
 
 def is_election_night_window(
@@ -138,6 +171,9 @@ class TSELivePoller:
         self._last_observed_votes: dict[str, int] = {}
         self._last_published_payload: PublishedProjectionPayload | None = None
         self._history_log: list[TSEPollerLogEntry] = []
+        self._state_etags: dict[str, str] = {}
+        self._state_last_modified: dict[str, str] = {}
+        self._state_totalizations: dict[str, NormalizedTotalization] = {}
 
     def get_target_url(self) -> str:
         """Retorna a URL canonica que sera consultada pelo poller.
@@ -159,6 +195,30 @@ class TSELivePoller:
                 return self._resolver.url_for_divulgacao(round_num=self._round_num)
         return self._resolver.url_for_totalization()
 
+    def get_state_target_url(self, state: str) -> str:
+        """Retorna a URL canonica de totalizacao para uma Unidade Federativa especifica (ou ZZ).
+
+        Args:
+            state: Sigla da UF com 2 caracteres (ex: 'SP', 'BA', 'ZZ').
+
+        Returns:
+            URL resolvida para consulta da totalizacao estadual.
+
+        Raises:
+            None.
+        """
+        uf = state.strip().upper()
+        if self._endpoint_type == "divulgacao":
+            return self._resolver.url_for_divulgacao(state=uf, round_num=self._round_num)
+        if self._endpoint_type == "simplificada":
+            return self._resolver.url_for_divulgacao_simplificada(
+                state=uf, round_num=self._round_num
+            )
+        if self._endpoint_type == "auto":
+            if "resultados.tse.jus.br" in self._resolver.base_url:
+                return self._resolver.url_for_divulgacao(state=uf, round_num=self._round_num)
+        return self._resolver.url_for_totalization(state=uf)
+
     @property
     def last_totalized_pct(self) -> float:
         """Percentual mais recente de eleitorado totalizado observado pelo poller."""
@@ -170,9 +230,64 @@ class TSELivePoller:
         return self._last_published_payload
 
     @property
+    def last_state_totalizations(self) -> dict[str, NormalizedTotalization]:
+        """Mapa das ultimas totalizacoes estaduais (27 UFs + ZZ) coletadas com sucesso."""
+        return dict(self._state_totalizations)
+
+    @property
     def history_log(self) -> list[TSEPollerLogEntry]:
         """Historico completo de auditoria das consultas ao TSE."""
         return list(self._history_log)
+
+    async def fetch_state_totalizations(
+        self,
+        states: Sequence[str] = ALL_TSE_STATE_CODES,
+    ) -> dict[str, NormalizedTotalization]:
+        """Busca concorrentemente as totalizacoes oficiais por UF respeitando ETag e rate limit.
+
+        Args:
+            states: Sequencia de siglas das UFs a consultar (padrao: 27 UFs + ZZ).
+
+        Returns:
+            Dicionario mapeando sigla da UF em maiusculas para seu NormalizedTotalization.
+
+        Raises:
+            None.
+        """
+        if self._target_url is not None:
+            return {}
+
+        async def _fetch_single_uf(raw_uf: str) -> None:
+            uf = raw_uf.strip().upper()
+            url = self.get_state_target_url(uf)
+            resp = await self._client.fetch(
+                election_id=self._election_id,
+                artifact_type=ArtifactType.EA20,
+                url=url,
+                etag=self._state_etags.get(uf),
+                last_modified=self._state_last_modified.get(uf),
+            )
+            if resp.http_status != 200:
+                return
+
+            tot_uf = normalize_ea20(resp.body, round_num=self._round_num)
+            if tot_uf.scope is not GeographicScope.STATE or tot_uf.scope_code.upper() != uf:
+                return
+
+            headers_dict = dict(resp.headers)
+            etag_val = headers_dict.get("etag")
+            lm_val = headers_dict.get("last-modified")
+            if etag_val:
+                self._state_etags[uf] = etag_val
+            if lm_val:
+                self._state_last_modified[uf] = lm_val
+            self._state_totalizations[uf] = tot_uf
+
+        await asyncio.gather(
+            *(_fetch_single_uf(uf_code) for uf_code in states),
+            return_exceptions=True,
+        )
+        return dict(self._state_totalizations)
 
     async def check_for_updates(
         self,
@@ -380,7 +495,8 @@ class TSELivePoller:
                 "projection": self._last_published_payload,
             }
 
-        # Quando ha dados novos, executa a projecao do 2º turno majoritario
+        # Quando ha dados novos, busca abertura por UF e condiciona aos votos reais do 2º turno
+        state_tots = await self.fetch_state_totalizations() if totalization.valid_votes > 0 else {}
         progress_pct = max(0.0001, min(1.0, self._last_totalized_pct / 100.0))
 
         payload = simulate_2026_second_round_checkpoint(
@@ -389,6 +505,8 @@ class TSELivePoller:
             num_draws=num_draws,
             seed=seed,
             observed_at=now or datetime.now(UTC),
+            live_totalization=totalization,
+            state_totalizations=state_tots or None,
         )
 
         self._last_published_payload = payload
@@ -397,5 +515,6 @@ class TSELivePoller:
             "has_new_data": True,
             "message": msg,
             "totalization": totalization,
+            "state_totalizations": state_tots,
             "projection": payload,
         }

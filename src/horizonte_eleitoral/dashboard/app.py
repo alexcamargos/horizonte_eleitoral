@@ -699,8 +699,42 @@ def _render_second_round_validation_tab() -> None:
     st.altair_chart(chart_main, use_container_width=True, theme="streamlit")
 
     # 5. Grafico Comparativo de Erro Absoluto (Modelo V2 vs Urna Bruta)
+    st.markdown('<div style="margin-top: 28px;"></div>', unsafe_allow_html=True)
     st.markdown("#### Qualidade do Modelo: Erro Absoluto ao Longo da Apuração")
-    chart_err = build_second_round_error_chart(points=points_2t)
+    st.caption(
+        "Distância em pontos percentuais (pp) para o resultado oficial definitivo do TSE. "
+        "A linha vertical destaca o marco percentual avaliado no controle acima."
+    )
+
+    col_scale, col_ext = st.columns([1.8, 2.2])
+    with col_scale:
+        scale_opt = st.radio(
+            "Escala vertical do erro:",
+            options=["Foco de Precisão (0 a 4 pp)", "Escala Ampla (0 a 20 pp)"],
+            index=0,
+            horizontal=True,
+            key="radio_error_chart_scale",
+            help="Foco de Precisão permite visualizar detalhes abaixo de 1 pp e a meta de 0,50 pp.",
+        )
+    with col_ext:
+        ext_opt = st.radio(
+            "Extensão da série avaliada:",
+            options=["Série Completa (2% a 100%)", "Apenas até o marco selecionado"],
+            index=0,
+            horizontal=True,
+            key="radio_error_chart_extent",
+            help="Série Completa exibe a convergência global com cursor no marco atual.",
+        )
+
+    y_ceiling = 4.0 if "Foco" in scale_opt else 20.0
+    chart_err_points = full_series_2t if "Completa" in ext_opt else points_2t
+
+    chart_err = build_second_round_error_chart(
+        points=chart_err_points,
+        height=320,
+        y_max=y_ceiling,
+        active_wave=current_wave_pct,
+    )
     st.altair_chart(chart_err, use_container_width=True, theme="streamlit")
 
     # 6. Tabela de Auditoria Onda a Onda

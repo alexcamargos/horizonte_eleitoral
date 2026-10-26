@@ -617,6 +617,163 @@ def build_second_round_live_point(
     }
 
 
+def build_live_point(
+    totalization: NormalizedTotalization,
+    round_num: int = 2,
+    time_str: str | None = None,
+    catalog: list[dict[str, Any]] | None = None,
+    num_draws: int = 200,
+    seed: int = 42,
+    state_totalizations: Mapping[str, NormalizedTotalization] | None = None,
+) -> dict[str, Any]:
+    """Constrói ponto da série temporal em tempo real para 1º ou 2º Turno a partir de dados do TSE.
+
+    Args:
+        totalization: Objeto normalizado da apuração oficial do TSE.
+        round_num: Turno avaliado (1 ou 2).
+        time_str: Horário de leitura (ex: '17:06'). Se None, utiliza hora local BRT.
+        catalog: Catálogo opcional de seções reais para projeção bayesiana quando >= 2.0%.
+        num_draws: Quantidade de sorteios Monte Carlo se calcular projeção.
+        seed: Semente determinística para reproducibilidade.
+        state_totalizations: Totalizações oficiais opcionais por UF para condicionamento estadual.
+
+    Returns:
+        Dicionário com horário t, percentual x, apurado, projeção, faixa e metadados.
+
+    Raises:
+        None.
+    """
+    if round_num == 2:
+        return build_second_round_live_point(
+            totalization=totalization,
+            time_str=time_str,
+            catalog=catalog,
+            num_draws=num_draws,
+            seed=seed,
+            state_totalizations=state_totalizations,
+        )
+
+    valid_votes = totalization.valid_votes
+    votes_dict = dict(totalization.candidate_group_votes)
+
+    if valid_votes > 0:
+        apurado = {
+            code: round((votes_dict.get(code, 0) / valid_votes) * 100.0, 2)
+            for code in ("PT", "PL", "OUTROS")
+        }
+    else:
+        apurado = {"PT": 0.0, "PL": 0.0, "OUTROS": 0.0}
+
+    total_sec = totalization.total_sections
+    x_sections = (
+        round((totalization.totalized_sections / total_sec) * 100.0, 2) if total_sec > 0 else 0.0
+    )
+
+    total_elec = totalization.total_electorate
+    x_electorate = (
+        round((totalization.totalized_electorate / total_elec) * 100.0, 2)
+        if total_elec > 0
+        else 0.0
+    )
+
+    x_val = x_sections
+
+    if time_str is None:
+        time_str = datetime.now(UTC).astimezone(BRASILIA_TZ).strftime("%H:%M")
+
+    tem_projecao = x_electorate >= 2.0
+    projecao: dict[str, float] | None = None
+    faixa: dict[str, list[float]] | None = None
+    p_2t: float | None = None
+
+    if tem_projecao and catalog:
+        progress = max(0.01, min(1.0, x_electorate / 100.0))
+        precomputed = _load_precomputed_checkpoints()
+        pre_key = f"{progress:.3f}"
+        if pre_key in precomputed:
+            p_data = precomputed[pre_key]
+            projecao = p_data.get("projecao")
+            faixa = p_data.get("faixa")
+            p_2t = p_data.get("p_2turno", 1.0)
+        else:
+            payload = simulate_2026_real_checkpoint(
+                sections_catalog=catalog,
+                progress_pct=progress,
+                num_draws=num_draws,
+                seed=seed,
+                by_electorate=True,
+            )
+            group_map = {g.code: g for g in payload.groups}
+            projecao = {
+                code: round(group_map[code].projected_share, 2)
+                for code in ("PT", "PL", "OUTROS")
+                if code in group_map
+            }
+            faixa = {
+                code: [round(group_map[code].q05, 2), round(group_map[code].q95, 2)]
+                for code in ("PT", "PL", "OUTROS")
+                if code in group_map
+            }
+            p_2t = (
+                round(payload.probability_second_round, 4)
+                if payload.probability_second_round is not None
+                else 1.0
+            )
+
+    return {
+        "t": time_str,
+        "x": x_val,
+        "x_sections": x_sections,
+        "electorate_pct": x_electorate,
+        "apurado": apurado,
+        "projecao": projecao,
+        "faixa": faixa,
+        "p_2turno": p_2t,
+        "valid_votes": valid_votes,
+        "totalized_sections": totalization.totalized_sections,
+        "total_sections": totalization.total_sections,
+        "totalized_electorate": totalization.totalized_electorate,
+        "total_electorate": totalization.total_electorate,
+        "votes": votes_dict,
+        "tse_time": totalization.generation_time,
+        "round": 1,
+        "is_live": True,
+        "model_rev": SECOND_ROUND_LIVE_MODEL_REV,
+    }
+
+
+def build_live_replay_point(
+    catalog: list[dict[str, Any]],
+    wave: float,
+    round_num: int = 2,
+    num_draws: int = 200,
+) -> dict[str, Any]:
+    """Gera um ponto simulado da apuracao oficial para o 1º ou 2º Turno.
+
+    Args:
+        catalog: Catalogo de secoes reais.
+        wave: Fracao de apuracao (0.01 a 1.0).
+        round_num: Turno (1 ou 2).
+        num_draws: Quantidade de sorteios Monte Carlo.
+
+    Returns:
+        Dicionario com a estrutura de ponto ao vivo simulado.
+
+    Raises:
+        None.
+    """
+    if round_num == 2:
+        return build_second_round_replay_point(catalog=catalog, wave=wave, num_draws=num_draws)
+
+    points = generate_replay_timeline(catalog=catalog, current_wave=wave)
+    if points:
+        pt = dict(points[-1])
+        pt["round"] = 1
+        pt["is_live"] = True
+        return pt
+    return {}
+
+
 def refresh_stale_second_round_points(
     points: list[dict[str, Any]],
     catalog: list[dict[str, Any]],

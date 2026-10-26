@@ -425,3 +425,59 @@ def test_slider_quick_jump_step_and_bounds() -> None:
 
     default_2t_val = 10.0
     assert max(0.25, min(100.0, default_2t_val)) == 10.0
+
+
+def test_build_live_point_round_1_and_round_2() -> None:
+    """Valida geracao de pontos em tempo real unificada para 1º e 2º turnos."""
+    from horizonte_eleitoral.dashboard.replay import (
+        build_live_point,
+        build_live_replay_point,
+    )
+
+    tot_1t = NormalizedTotalization(
+        scope=GeographicScope.BRAZIL,
+        scope_code="BR",
+        total_electorate=100_000_000,
+        totalized_electorate=1_000_000,
+        pending_electorate=99_000_000,
+        total_sections=100_000,
+        totalized_sections=1_000,
+        pending_sections=99_000,
+        valid_votes=800_000,
+        blank_votes=20_000,
+        null_votes=30_000,
+        candidate_group_votes=(("OUTROS", 80_000), ("PL", 320_000), ("PT", 400_000)),
+        generation_time="04/10/2026 17:15:00",
+    )
+
+    pt_1t = build_live_point(tot_1t, round_num=1, time_str="17:15")
+    assert pt_1t["round"] == 1
+    assert pt_1t["apurado"]["PT"] == 50.0
+    assert pt_1t["apurado"]["PL"] == 40.0
+    assert pt_1t["apurado"]["OUTROS"] == 10.0
+    assert pt_1t["x_sections"] == 1.0
+    assert pt_1t["electorate_pct"] == 1.0
+    # < 2% nao emite projecao definitiva
+    assert pt_1t["projecao"] is None
+
+    tot_2t = NormalizedTotalization(
+        scope=GeographicScope.BRAZIL,
+        scope_code="BR",
+        total_electorate=100_000_000,
+        totalized_electorate=1_000_000,
+        pending_electorate=99_000_000,
+        total_sections=100_000,
+        totalized_sections=1_000,
+        pending_sections=99_000,
+        valid_votes=800_000,
+        blank_votes=20_000,
+        null_votes=30_000,
+        candidate_group_votes=(("PL", 380_000), ("PT", 420_000)),
+        generation_time="25/10/2026 17:15:00",
+    )
+
+    pt_2t = build_live_point(tot_2t, round_num=2, time_str="17:15")
+    assert pt_2t["round"] == 2
+    assert pt_2t["apurado"]["PT"] == 52.5
+    assert pt_2t["apurado"]["PL"] == 47.5
+    assert pt_2t["x_sections"] == 1.0

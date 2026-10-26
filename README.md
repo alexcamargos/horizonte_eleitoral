@@ -26,15 +26,15 @@ O **Horizonte Eleitoral** resolve este desafio: em vez de assumir que o país vo
 
 ## Principais Capacidades
 
-- **Modelo Hierárquico Bayesiano V2 (MRP Adaptativo):** Modelação em 4 níveis (Nacional ponderado pelo censo $\rightarrow$ 5 Macro-regiões $\rightarrow$ 27 UFs $\rightarrow$ 5.570+ Municípios).
+- **HORIZON-MRP (Hierarchical Optimal Regression & Inferred Zonal Outcomes Network):** Modelação em 4 níveis (Nacional ponderado pelo censo $\rightarrow$ 5 Macro-regiões $\rightarrow$ 27 UFs $\rightarrow$ 5.570+ Municípios) com calibração exata via Newton-Raphson e encolhimento bayesiano adaptativo.
 - **Índice de Elasticidade Municipal (2018–2022):** Modula o fator de encolhimento bayesiano (*shrinkage*). Municípios com alta volatilidade histórica aprendem mais rápido da eleição atual; municípios estáveis mantêm sólida proteção contra ruído estatístico.
 - **Acurácia Validada em 499.206 Seções Reais (1º e 2º Turnos de 2026):**
   - **1º Turno:** Com apenas **2,0% do eleitorado apurado**, o modelo projetou **PT 45,25% e PL 46,99%** frente ao resultado oficial final de **45,16% vs 47,03%** (**MAE = 0,06 pp**).
-  - **2º Turno (100% das seções oficiais TSE · 5.716 municípios):** Reproduz fielmente a suspensão em **0,25%** entre `17h07` e `19h00` BRT (prorrogação do STF) e a retomada após as `19h00` BRT. Às **19h30 (5,0% apurado)** já cravou **PT 51,70% vs PL 48,30%** (`MAE = 0,09 pp`), e durante toda a janela das **19h46 às 20h24** — quando Flávio Bolsonaro liderava a urna bruta (`PL 51,02% vs PT 48,98%` em `25%`) — o Modelo V2 sustentou a vitória de Lula (**51,68% vs 48,32%**, `MAE = 0,11 pp`) rumo ao resultado final homologado (**51,79% vs 48,21%**).
+  - **2º Turno (100% das seções oficiais TSE · 5.716 municípios):** Reproduz fielmente a suspensão em **0,25%** entre `17h07` e `19h00` BRT (prorrogação do STF) e a retomada após as `19h00` BRT. Às **19h30 (5,0% apurado)** já cravou **PT 51,70% vs PL 48,30%** (`MAE = 0,09 pp`), e durante toda a janela das **19h46 às 20h24** — quando Flávio Bolsonaro liderava a urna bruta (`PL 51,02% vs PT 48,98%` em `25%`) — o HORIZON-MRP sustentou a vitória de Lula (**51,68% vs 48,32%**, `MAE = 0,11 pp`) rumo ao resultado final homologado (**51,79% vs 48,21%**).
 - **Simulação de Monte Carlo com Intervalos de Credibilidade de 90%:** 2.000 sorteios estocásticos vetorizados propagando incertezas macro e micro, gerando faixas preditivas confiáveis $[q_{05}, q_{95}]$ e probabilidades calibradas de vitória / 2º turno.
 - **Catálogo Colunar Parquet & DuckDB:** Carga de meio milhão de seções em menos de 0,8 segundo e suporte a consultas SQL analíticas em memória instantâneas.
 - **Painel Visual Interativo Streamlit:** Três abas especializadas:
-  - **Aba 1 (Histórico & Validação · 2º Turno 2026):** Replay retroativo de 1% a 100% contra os dados reais divulgados pelo TSE (`5.716` municípios), painel executivo de qualidade preditiva, curva de decaimento do erro absoluto (`Modelo V2` vs `Urna Bruta`), auditoria marco a marco e diagnóstico por UF.
+  - **Aba 1 (Histórico & Validação · 2º Turno 2026):** Replay retroativo de 1% a 100% contra os dados reais divulgados pelo TSE (`5.716` municípios), painel executivo de qualidade preditiva, curva de decaimento do erro absoluto (`HORIZON-MRP` vs `Urna Bruta`), auditoria marco a marco e diagnóstico por UF.
   - **Aba 2 (Replay & Validação · 1º Turno 2026):** Linha do tempo navegável (1% a 100%), gráficos Altair com faixas de incerteza, cards de candidatos, tabelas estaduais e model card metodológico.
   - **Aba 3 (Tempo Real · 2º Turno Oficial):** Conexão assíncrona oficial à API do TSE com suporte a polling inteligente (ETag 304), disparos manuais e simulação de novas ondas.
 - **Integridade e Governança Imutável:** Cofre de dados brutos com verificação SHA-256, reconciliação estrita (*Failure-Stop* contra dados dessincronizados) e gravação atômica (`tempfile` + `os.replace`).
@@ -100,7 +100,7 @@ uv run horizonte-eleitoral --query-sql "SELECT state, count(*) AS secoes, sum(el
 uv run horizonte-eleitoral --query-sql "SELECT municipality_key, pt_swing, pl_swing, volatility FROM 'data/real/elasticity_2018_2022.parquet' ORDER BY volatility DESC LIMIT 5"
 ```
 
-### Comparativo Head-to-Head entre Modelo V1 e Modelo V2
+### Comparativo Head-to-Head entre Modelo V1 (Legado) e HORIZON-MRP (V2)
 ```powershell
 uv run horizonte-eleitoral --compare-v1-v2
 ```

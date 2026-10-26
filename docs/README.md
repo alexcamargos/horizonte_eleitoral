@@ -17,7 +17,7 @@ horizonte_eleitoral/
 └── docs/
     ├── README.md                      # [Este Portal] Índice canônico de navegação
     ├── ARQUITETURA.md                 # [Mapa] Arquitetura, componentes, fronteiras e jump table
-    ├── METODOLOGIA_ESTATISTICA.md     # [Metodologia] Formulação matemática, modelos de referência e MRP V2
+    ├── METODOLOGIA_ESTATISTICA.md     # [Metodologia] Formulação matemática, 4 baselines e HORIZON-MRP
     ├── DECISOES_DE_ENGENHARIA.md      # [Histórico / ADRs] Registros de Decisão de Arquitetura e lógica
     └── STATUS_E_GOVERNANCA.md         # [Status & Delete-Zone] Saúde dos testes, delete-zone e roadmap
 ```
@@ -34,7 +34,7 @@ horizonte_eleitoral/
 
 ### Para Estatísticos, Cientistas de Dados e Pesquisadores
 1. Leia a [Metodologia Estatística](METODOLOGIA_ESTATISTICA.md), que detalha o fenômeno do viés geográfico da apuração no Brasil, os 4 baselines de referência, a formulação matemática do modelo hierárquico bayesiano (MRP), o índice de elasticidade municipal multi-ciclo (2018–2022) e a simulação de Monte Carlo.
-2. Explore a seção de resultados empíricos em [Metodologia Estatística](METODOLOGIA_ESTATISTICA.md#6-resultados-empíricos-na-eleição-de-2026-499206-seções), com o comparativo de precisão entre o Modelo V1 e o Modelo V2 em 100% da base real de 2026.
+2. Explore a seção de resultados empíricos em [Metodologia Estatística](METODOLOGIA_ESTATISTICA.md#6-resultados-empíricos-na-eleição-de-2026-499206-seções), com o comparativo de precisão entre o modelo legado V1 e o HORIZON-MRP em 100% da base real de 2026.
 3. Consulte o [ADR 005 em Decisões de Engenharia](DECISOES_DE_ENGENHARIA.md#adr-005-substituição-do-modelo-hierárquico-v1-pelo-modelo-v2-com-elasticidade-municipal).
 
 ### Para Jornalistas de Dados e Operadores Eleitorais
@@ -50,7 +50,7 @@ horizonte_eleitoral/
 |---|---|---|
 | Instalar e rodar o projeto localmente | [README.md](../README.md#início-rápido) | `uv sync; uv run pytest` |
 | Compreender os contratos de domínio imutáveis | [`src/horizonte_eleitoral/domain/`](../src/horizonte_eleitoral/domain/) | [`tests/unit/test_domain.py`](../tests/unit/test_domain.py) |
-| Entender a formulação matemática do Modelo V2 | [Metodologia Estatística](METODOLOGIA_ESTATISTICA.md#3-modelo-hierárquico-bayesiano-v2-mrp-com-elasticidade) | [`tests/unit/test_hierarchical_v2.py`](../tests/unit/test_hierarchical_v2.py) |
+| Entender a formulação matemática do HORIZON-MRP | [Metodologia Estatística](METODOLOGIA_ESTATISTICA.md#3-horizon-mrp-modelo-hierárquico-bayesiano-v2-mrp-calibrado-com-encolhimento) | [`tests/unit/test_hierarchical_v2.py`](../tests/unit/test_hierarchical_v2.py) |
 | Entender o cálculo de elasticidade 2018–2022 | [`src/horizonte_eleitoral/historical/elasticity.py`](../src/horizonte_eleitoral/historical/elasticity.py) | [`tests/unit/test_elasticity.py`](../tests/unit/test_elasticity.py) |
 | Ver como é garantida a consistência de apuração | [`src/horizonte_eleitoral/reconciliation/`](../src/horizonte_eleitoral/reconciliation/) | [`tests/unit/test_reconciliation.py`](../tests/unit/test_reconciliation.py) |
 | Subir a aplicação Streamlit interativa | [README.md](../README.md#executando-o-dashboard-streamlit) | `uv run horizonte-eleitoral --dashboard` |

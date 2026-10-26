@@ -70,3 +70,26 @@ def test_format_staleness_badge() -> None:
 
     text, level = format_staleness_badge(2000)
     assert level == "error"
+
+
+def test_build_chart_guide_html_round_2() -> None:
+    """Valida legendas especificas de 2o turno com maioria absoluta e gabarito final."""
+    html_2t = build_chart_guide_html(round_num=2)
+    assert "50% (Maioria Absoluta)" in html_2t
+    assert "Resultado Final TSE (100%)" in html_2t
+    assert "amostra-linha-gabarito" in html_2t
+    assert "Outros (soma)" not in html_2t
+
+
+def test_get_custom_css_contains_design_tokens() -> None:
+    """Valida presenca dos tokens de tema claro/escuro e classes estruturais no CSS."""
+    from horizonte_eleitoral.dashboard.styles import get_custom_css
+
+    css = get_custom_css()
+    assert "--fundo-card" in css
+    assert "--borda-card" in css
+    assert "--badge-bg-pt" in css
+    assert "--badge-bg-pl" in css
+    assert "sidebar-model-badge" in css
+    assert "chance-vitoria-box" in css
+    assert "status-box-container" in css

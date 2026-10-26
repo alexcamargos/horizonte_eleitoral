@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from horizonte_eleitoral.domain.enums import GeographicScope
 from horizonte_eleitoral.ingestion.real_data_loader import RealDataLoader
 from horizonte_eleitoral.models.base import SectionObservation
 from horizonte_eleitoral.models.hierarchical import REGIONS_BY_UF
@@ -21,7 +23,7 @@ from horizonte_eleitoral.simulation.election_night_runner import (
 
 BRASILIA_TZ = ZoneInfo("America/Sao_Paulo")
 
-# Lista de marcos padronizados de apuracao para a curva de evolucao
+# Lista de marcos padronizados de apuracao para a curva de evolucao (1º Turno)
 DEFAULT_CHECKPOINTS: tuple[float, ...] = (
     0.01,
     0.02,
@@ -35,6 +37,25 @@ DEFAULT_CHECKPOINTS: tuple[float, ...] = (
     0.70,
     0.80,
     0.90,
+    1.00,
+)
+
+# Marcos reais do 2º Turno de 2026: inclui o patamar de 0,25% (suspenso das 17h07 as 19h00 BRT)
+DEFAULT_2T_CHECKPOINTS: tuple[float, ...] = (
+    0.0025,
+    0.01,
+    0.02,
+    0.05,
+    0.10,
+    0.20,
+    0.30,
+    0.40,
+    0.50,
+    0.60,
+    0.70,
+    0.80,
+    0.90,
+    0.95,
     1.00,
 )
 
@@ -70,8 +91,11 @@ DEFAULT_STATE_POLLS: dict[str, dict[str, float]] = {
 }
 
 _CHECKPOINTS_FILE = Path("data/real/checkpoints_2026.json")
+_CHECKPOINTS_2T_FILE = Path("data/real/checkpoints_2026_2t.json")
 _PRECOMPUTED_CHECKPOINTS: dict[str, dict[str, Any]] | None = None
+_PRECOMPUTED_CHECKPOINTS_2T: dict[str, dict[str, Any]] | None = None
 _CATALOG_CACHE: dict[int | None, list[dict[str, Any]]] = {}
+_CATALOG_2T_CACHE: dict[int | None, list[dict[str, Any]]] = {}
 
 
 def _load_precomputed_checkpoints() -> dict[str, dict[str, Any]]:
@@ -472,17 +496,22 @@ def build_second_round_replay_point(
     }
 
 
+SECOND_ROUND_LIVE_MODEL_REV = "2026.2-live-v2"
+
+
 def build_second_round_live_point(
     totalization: NormalizedTotalization,
     time_str: str | None = None,
     catalog: list[dict[str, Any]] | None = None,
-    num_draws: int = 100,
+    num_draws: int = 200,
     seed: int = 42,
+    state_totalizations: Mapping[str, NormalizedTotalization] | None = None,
 ) -> dict[str, Any]:
     """Constrói ponto da série temporal de apuração do 2º Turno a partir de dados reais do TSE.
 
-    Consome a totalização oficial consolidada (NormalizedTotalization) e calcula
-    os percentuais apurados reais para Lula (PT) e Flávio Bolsonaro (PL).
+    Consome a totalização oficial consolidada (NormalizedTotalization) e, quando disponíveis,
+    as totalizações oficiais por UF, calculando os percentuais apurados reais e a projeção
+    bayesiana condicionada aos votos reais para Lula (PT) e Flávio Bolsonaro (PL).
     Em conformidade com a Constituição Técnica, projeções e intervalos de credibilidade
     só são calculados a partir de 2,0% do eleitorado apurado; abaixo desse limiar,
     permanecem None (preliminares).
@@ -493,6 +522,7 @@ def build_second_round_live_point(
         catalog: Catálogo opcional de seções reais para projeção bayesiana quando >= 2.0%.
         num_draws: Quantidade de sorteios Monte Carlo se calcular projeção.
         seed: Semente determinística para reproducibilidade.
+        state_totalizations: Totalizações oficiais opcionais por UF para condicionamento estadual.
 
     Returns:
         Dicionário com horario t, percentual x, apurado, projecao, faixa e metadados.
@@ -545,6 +575,8 @@ def build_second_round_live_point(
             num_draws=num_draws,
             seed=seed,
             by_electorate=True,
+            live_totalization=totalization,
+            state_totalizations=state_totalizations,
         )
         group_map = {g.code: g for g in payload.groups}
         projecao = {
@@ -581,7 +613,74 @@ def build_second_round_live_point(
         "tse_time": totalization.generation_time,
         "round": 2,
         "is_live": True,
+        "model_rev": SECOND_ROUND_LIVE_MODEL_REV,
     }
+
+
+def refresh_stale_second_round_points(
+    points: list[dict[str, Any]],
+    catalog: list[dict[str, Any]],
+    num_draws: int = 200,
+    seed: int = 42,
+) -> list[dict[str, Any]]:
+    """Recalcula pontos em tempo real legados na sessao para o motor condicionado aos votos reais.
+
+    Args:
+        points: Lista de pontos do 2º turno armazenados em sessao.
+        catalog: Catalogo analitico de secoes para condicionamento bayesiano.
+        num_draws: Quantidade de sorteios Monte Carlo por ponto recalculado.
+        seed: Semente deterministica pseudoaleatoria.
+
+    Returns:
+        Nova lista de pontos com projecoes atualizadas para SECOND_ROUND_LIVE_MODEL_REV.
+
+    Raises:
+        None.
+    """
+    refreshed: list[dict[str, Any]] = []
+    for p in points:
+        if not p.get("is_live") or p.get("model_rev") == SECOND_ROUND_LIVE_MODEL_REV:
+            refreshed.append(p)
+            continue
+
+        if "votes" not in p or "total_electorate" not in p:
+            refreshed.append(p)
+            continue
+
+        raw_votes = dict(p.get("votes") or {})
+        v_pl = int(raw_votes.get("PL", 0))
+        v_pt = int(raw_votes.get("PT", 0))
+        valid_v = int(p.get("valid_votes", v_pl + v_pt))
+        tot_elec = int(p.get("total_electorate", 0))
+        apu_elec = int(p.get("totalized_electorate", 0))
+        tot_sec = int(p.get("total_sections", 0))
+        apu_sec = int(p.get("totalized_sections", 0))
+
+        tot = NormalizedTotalization(
+            scope=GeographicScope.BRAZIL,
+            scope_code="BR",
+            total_electorate=tot_elec,
+            totalized_electorate=apu_elec,
+            pending_electorate=max(0, tot_elec - apu_elec),
+            total_sections=tot_sec,
+            totalized_sections=apu_sec,
+            pending_sections=max(0, tot_sec - apu_sec),
+            valid_votes=valid_v,
+            blank_votes=0,
+            null_votes=0,
+            candidate_group_votes=(("PL", v_pl), ("PT", v_pt)),
+            generation_time=p.get("tse_time"),
+        )
+        refreshed.append(
+            build_second_round_live_point(
+                totalization=tot,
+                time_str=p.get("t"),
+                catalog=catalog,
+                num_draws=num_draws,
+                seed=seed,
+            )
+        )
+    return refreshed
 
 
 def generate_second_round_timeline(
@@ -625,3 +724,223 @@ def generate_second_round_timeline(
         pt = build_second_round_replay_point(catalog=catalog, wave=w)
         points.append(pt)
     return points
+
+
+def _load_precomputed_second_round_checkpoints() -> dict[str, dict[str, Any]]:
+    """Carrega marcos precomputados de validacao do 2º Turno gravados em disco se disponiveis.
+
+    Args:
+        None.
+
+    Returns:
+        Dicionario de pontos do 2º turno indexado pelo percentual (ex: '0.700').
+
+    Raises:
+        None.
+    """
+    global _PRECOMPUTED_CHECKPOINTS_2T
+    if _PRECOMPUTED_CHECKPOINTS_2T is not None:
+        return _PRECOMPUTED_CHECKPOINTS_2T
+    if _CHECKPOINTS_2T_FILE.exists():
+        try:
+            with open(_CHECKPOINTS_2T_FILE, encoding="utf-8") as f:
+                _PRECOMPUTED_CHECKPOINTS_2T = json.load(f)
+                return _PRECOMPUTED_CHECKPOINTS_2T
+        except Exception:
+            pass
+    _PRECOMPUTED_CHECKPOINTS_2T = {}
+    return _PRECOMPUTED_CHECKPOINTS_2T
+
+
+def load_second_round_validation_catalog(
+    limit_sections: int | None = None,
+) -> list[dict[str, Any]]:
+    """Carrega o catalogo cronologico real do 2º Turno de 2026 com fallback offline deterministico.
+
+    Prioriza ``data/real/catalog_2026_2t.parquet`` consolidado a partir dos arquivos oficiais
+    da CDN do TSE (eleicao 6258). Em ambientes de teste/CI sem a pasta ``data/real``, deriva
+    automaticamente um catalogo bilateral deterministico a partir do catalogo de fixture.
+
+    Args:
+        limit_sections: Limite opcional de secoes a carregar.
+
+    Returns:
+        Lista ordenada cronologicamente de secoes do 2º turno.
+
+    Raises:
+        FileNotFoundError: Se nenhuma fonte de dados ou fixture for localizada.
+    """
+    if limit_sections in _CATALOG_2T_CACHE:
+        return _CATALOG_2T_CACHE[limit_sections]
+
+    loader = RealDataLoader()
+    parquet_2t = Path("data/real/catalog_2026_2t.parquet")
+    if parquet_2t.exists():
+        cat_2t = loader.load_catalog_parquet(parquet_2t, limit_rows=limit_sections)
+        _CATALOG_2T_CACHE[limit_sections] = cat_2t
+        return cat_2t
+
+    base_cat = load_replay_catalog(limit_sections=limit_sections)
+    derived: list[dict[str, Any]] = []
+    for item in base_cat:
+        gv = dict(item.get("group_votes", ()))
+        hd = dict(item.get("historical_shares", ()))
+        v_pl = max(0, int(gv.get("PL", 0) or 0))
+        v_pt = max(0, int(gv.get("PT", 0) or 0))
+        h_pl = float(hd.get("PL", 0.5) or 0.0)
+        h_pt = float(hd.get("PT", 0.5) or 0.0)
+        h_sum = h_pl + h_pt
+        p_pl = (h_pl / h_sum) if h_sum > 0.0 else 0.5
+        p_pt = (h_pt / h_sum) if h_sum > 0.0 else 0.5
+        derived.append(
+            {
+                **item,
+                "valid_votes": v_pl + v_pt,
+                "group_votes": (("OUTROS", 0), ("PL", v_pl), ("PT", v_pt)),
+                "historical_shares": (("OUTROS", 0.0), ("PL", p_pl), ("PT", p_pt)),
+            }
+        )
+    _CATALOG_2T_CACHE[limit_sections] = derived
+    return derived
+
+
+def build_second_round_validation_point(
+    catalog_2t: list[dict[str, Any]],
+    wave: float,
+    seed: int = 42,
+    num_draws: int = 250,
+) -> dict[str, Any]:
+    """Computa (ou recupera precomputado) o ponto de validacao retroativa do 2º Turno em ``wave``.
+
+    Args:
+        catalog_2t: Catalogo cronologico do 2º turno.
+        wave: Fracao de totalizacao do eleitorado em (0.0, 1.0].
+        seed: Semente deterministica para simulacao Monte Carlo.
+        num_draws: Quantidade de sorteios estocasticos Monte Carlo.
+
+    Returns:
+        Dicionario completo do ponto com ``apurado``, ``projecao``, ``faixa``,
+        ``win_probability``, ``final_oficial`` e ``metrics``.
+
+    Raises:
+        ValueError: Se ``wave`` estiver fora do intervalo (0.0, 1.0].
+    """
+    if len(catalog_2t) > 10_000:
+        precomputed = _load_precomputed_second_round_checkpoints()
+        key4 = f"{wave:.4f}"
+        key3 = f"{wave:.3f}"
+        if key4 in precomputed:
+            return precomputed[key4]
+        if key3 in precomputed:
+            return precomputed[key3]
+
+    from horizonte_eleitoral.backtest.second_round_validation import evaluate_second_round_wave
+
+    return evaluate_second_round_wave(
+        sections_catalog_2t=catalog_2t,
+        wave=wave,
+        num_draws=num_draws,
+        seed=seed,
+    )
+
+
+def generate_second_round_validation_timeline(
+    catalog_2t: list[dict[str, Any]],
+    current_wave: float,
+    checkpoints: tuple[float, ...] = DEFAULT_2T_CHECKPOINTS,
+) -> list[dict[str, Any]]:
+    """Gera a serie temporal cronologica de validacao do 2º Turno ate ``current_wave``.
+
+    Args:
+        catalog_2t: Catalogo cronologico do 2º turno.
+        current_wave: Marco percentual maximo a incluir na serie visivel em (0.0, 1.0].
+        checkpoints: Lista de marcos padrao da noite eleitoral (1%, 2%, 5%, 10%... 100%).
+
+    Returns:
+        Lista ordenada de pontos de validacao retroativa ate o marco selecionado.
+
+    Raises:
+        None.
+    """
+    active_waves = [w for w in checkpoints if w <= current_wave + 1e-4]
+    if not active_waves:
+        active_waves = [current_wave]
+    elif abs(active_waves[-1] - current_wave) > 1e-3:
+        active_waves.append(current_wave)
+        active_waves.sort()
+
+    return [
+        build_second_round_validation_point(catalog_2t=catalog_2t, wave=w) for w in active_waves
+    ]
+
+
+def generate_second_round_state_projections(
+    catalog_2t: list[dict[str, Any]],
+    wave: float,
+) -> list[dict[str, Any]]:
+    """Gera a tabela de projecao e validacao estadual do 2º Turno para todas as UFs.
+
+    Args:
+        catalog_2t: Catalogo cronologico do 2º turno.
+        wave: Fracao do eleitorado nacional totalizado em (0.0, 1.0].
+
+    Returns:
+        Lista de dicionarios por UF com % apurado, urna 2T, projecao V2 e resultado final TSE.
+
+    Raises:
+        ValueError: Se ``wave`` estiver fora do intervalo (0.0, 1.0].
+    """
+    from horizonte_eleitoral.backtest.second_round_validation import (
+        generate_second_round_state_validation,
+    )
+
+    return generate_second_round_state_validation(
+        sections_catalog_2t=catalog_2t,
+        wave=wave,
+    )
+
+
+def precompute_second_round_checkpoints(
+    catalog_2t: list[dict[str, Any]],
+    out_path: Path | str = _CHECKPOINTS_2T_FILE,
+    num_draws: int = 400,
+    seed: int = 42,
+) -> dict[str, dict[str, Any]]:
+    """Pre-computa e persiste os marcos de validacao do 2º Turno em JSON para resposta imediata.
+
+    Inclui todos os marcos de ``DEFAULT_CHECKPOINTS`` e passos intermediarios de 5%
+    para navegacao fluida no dashboard Streamlit.
+
+    Args:
+        catalog_2t: Catalogo cronologico completo do 2º turno.
+        out_path: Caminho de destino do arquivo JSON de checkpoints.
+        num_draws: Quantidade de sorteios Monte Carlo de alta precisao.
+        seed: Semente deterministica pseudoaleatoria.
+
+    Returns:
+        Dicionario completo de checkpoints gravado em disco.
+
+    Raises:
+        OSError: Se houver falha ao gravar o arquivo JSON.
+    """
+    global _PRECOMPUTED_CHECKPOINTS_2T
+    from horizonte_eleitoral.backtest.second_round_validation import evaluate_second_round_wave
+
+    dense_waves = sorted(
+        set(DEFAULT_2T_CHECKPOINTS) | {round(step * 0.05, 4) for step in range(1, 21)}
+    )
+    computed: dict[str, dict[str, Any]] = {}
+    for w in dense_waves:
+        key = f"{w:.4f}"
+        computed[key] = evaluate_second_round_wave(
+            sections_catalog_2t=catalog_2t,
+            wave=w,
+            num_draws=num_draws,
+            seed=seed,
+        )
+
+    dest = Path(out_path)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(json.dumps(computed, indent=2, ensure_ascii=False), encoding="utf-8")
+    _PRECOMPUTED_CHECKPOINTS_2T = computed
+    return computed

@@ -1,0 +1,12 @@
+# Dependencias principais para o deploy no Streamlit Community Cloud
+# Gerado a partir de pyproject.toml
+duckdb>=1.5.6
+fastapi>=0.115.0
+httpx>=0.28.0
+httpx2>=2.13.1
+numpy>=2.0.0
+pyarrow>=25.0.1
+pydantic>=2.10.0
+scipy>=1.14.0
+streamlit>=1.40.0
+uvicorn>=0.32.0

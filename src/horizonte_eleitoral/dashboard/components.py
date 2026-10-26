@@ -115,6 +115,7 @@ def render_editorial_header(
     updated_str: str,
     environment: str = "oficial",
     status_text: str = "",
+    round_num: int = 1,
 ) -> None:
     """Renderiza o cabecalho institucional editorial identico ao da aplicacao de referencia.
 
@@ -123,6 +124,7 @@ def render_editorial_header(
         updated_str: Horario ou data da ultima atualizacao dos dados.
         environment: Ambiente da execucao ('oficial', 'replay' ou 'simulado').
         status_text: Mensagem textual opcional adicional de status.
+        round_num: Turno da eleicao presidencial (1 ou 2).
 
     Returns:
         None.
@@ -130,8 +132,9 @@ def render_editorial_header(
     Raises:
         None.
     """
+    turno_label = "2º turno" if round_num == 2 else "1º turno"
     st.markdown(
-        '<p class="editorial-sobretitulo">Eleições 2026 · Presidente · 1º turno</p>',
+        f'<p class="editorial-sobretitulo">Eleições 2026 · Presidente · {turno_label}</p>',
         unsafe_allow_html=True,
     )
     st.markdown(
@@ -160,7 +163,12 @@ def render_editorial_header(
         badge_html = '<span class="selo-estavel">projeção estável</span>'
 
     pct_str = f"{electorate_pct:.2f}%".replace(".", ",")
-    hora_str = updated_str[-8:] if len(updated_str) >= 8 else updated_str
+    if "–" in updated_str:
+        hora_str = updated_str
+    elif " " in updated_str:
+        hora_str = updated_str.split()[-1]
+    else:
+        hora_str = updated_str[-8:] if len(updated_str) >= 8 else updated_str
 
     status_bar_html = (
         f'<div class="editorial-status-bar">'
@@ -172,7 +180,18 @@ def render_editorial_header(
     st.markdown(status_bar_html, unsafe_allow_html=True)
 
     # Avisos de ambiente
-    if environment == "replay":
+    if environment == "replay" and round_num == 2:
+        st.markdown(
+            '<div class="banner-aviso">'
+            "<strong>Auditoria Retroativa (Dados Oficiais TSE):</strong> reprodução fiel do "
+            "2º turno de 25/10/2026 — incluindo a paralisação em <strong>0,25%</strong> entre "
+            "<strong>17h07 e 19h00 BRT</strong> (prorrogação do STF) e a retomada nacional após "
+            "as <strong>19h00 BRT</strong> — confrontando a projeção estatística "
+            "com o resultado final do TSE."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+    elif environment == "replay":
         st.markdown(
             '<div class="banner-aviso">'
             "<strong>Demonstração:</strong> reprodução da apuração na ordem real de chegada "
@@ -440,7 +459,9 @@ def render_history_table(points: list[dict[str, Any]]) -> None:
     for p in reversed(points):
         t_str = str(p.get("t", ""))
         x_val = float(p.get("x", 0.0))
-        x_str = f"{x_val:.1f}%".replace(".", ",")
+        x_str = (
+            f"{x_val:.2f}%".replace(".", ",") if x_val < 1.0 else f"{x_val:.1f}%".replace(".", ",")
+        )
         obs = p.get("apurado") or {}
         proj = p.get("projecao")
         faixa = p.get("faixa") or {}
@@ -630,14 +651,17 @@ def render_model_card_expander(card_info: dict[str, Any] | None) -> None:
             st.caption(f"_{card_info.get('disclaimer', '')}_")
 
 
-def build_chart_guide_html() -> str:
+def build_chart_guide_html(round_num: int = 1) -> str:
     """Gera o HTML editorial contendo a orientacao de leitura e a legenda visual dos graficos.
 
     Apresenta a descricao conceitual da convergencia entre votos apurados e projecao final,
     alem de duas secoes de legenda:
     1. Convencao de Linhas e Camadas: linha solida (apurado TSE), linha tracejada
        (projecao final), area sombreada (faixa de 90%) e linha pontilhada (limiar de 50%).
-    2. Convencao de Candidaturas: cores associadas ao PT, PL e Outros candidatos.
+    2. Convencao de Candidaturas: cores associadas ao PT, PL e (no 1º turno) Outros candidatos.
+
+    Args:
+        round_num: Turno da eleicao presidencial (1 ou 2).
 
     Returns:
         String contendo a estrutura HTML formatada com classes CSS do dashboard.
@@ -645,7 +669,26 @@ def build_chart_guide_html() -> str:
     Raises:
         None.
     """
-    return """
+    linha_50_label = "50% (Maioria Absoluta)" if round_num == 2 else "50% (1º Turno)"
+    gabarito_html = (
+        """
+                <span class="grafico-legenda-item">
+                    <span class="amostra-linha-gabarito"></span>
+                    <span>Resultado Final TSE (100%)</span>
+                </span>"""
+        if round_num == 2
+        else ""
+    )
+    outros_html = (
+        ""
+        if round_num == 2
+        else """
+                <span class="grafico-legenda-item">
+                    <span class="chave-cor chave-OUTROS"></span>
+                    <span>Outros (soma)</span>
+                </span>"""
+    )
+    return f"""
     <div class="grafico-guia-container">
         <div class="grafico-descricao">
             <strong>Como interpretar:</strong> O gráfico apresenta a convergência entre os
@@ -671,8 +714,8 @@ def build_chart_guide_html() -> str:
                 </span>
                 <span class="grafico-legenda-item">
                     <span class="amostra-linha-50"></span>
-                    <span>50% (1º Turno)</span>
-                </span>
+                    <span>{linha_50_label}</span>
+                </span>{gabarito_html}
             </div>
             <div class="grafico-legenda-bloco">
                 <span class="grafico-legenda-titulo">CANDIDATURAS:</span>
@@ -683,19 +726,18 @@ def build_chart_guide_html() -> str:
                 <span class="grafico-legenda-item">
                     <span class="chave-cor chave-PL"></span>
                     <span>Flávio Bolsonaro (PL)</span>
-                </span>
-                <span class="grafico-legenda-item">
-                    <span class="chave-cor chave-OUTROS"></span>
-                    <span>Outros (soma)</span>
-                </span>
+                </span>{outros_html}
             </div>
         </div>
     </div>
     """
 
 
-def render_chart_guide() -> None:
+def render_chart_guide(round_num: int = 1) -> None:
     """Renderiza a descricao e a legenda visual dos graficos no dashboard Streamlit.
+
+    Args:
+        round_num: Turno da eleicao presidencial (1 ou 2).
 
     Returns:
         None.
@@ -703,7 +745,7 @@ def render_chart_guide() -> None:
     Raises:
         None.
     """
-    st.markdown(build_chart_guide_html(), unsafe_allow_html=True)
+    st.markdown(build_chart_guide_html(round_num=round_num), unsafe_allow_html=True)
 
 
 def render_second_round_candidate_cards(
@@ -800,8 +842,6 @@ def render_second_round_candidate_cards(
         if data_pt["q05"]
         else "Projeção preliminar (< 2% apurado)"
     )
-    pt_bg = "#dcfce7" if pt_prob_win >= 50 else "#f1f5f9"
-    pt_color = "#166534" if pt_prob_win >= 50 else "#475569"
     pt_lead = " (Liderança)" if pt_prob_win > 50 else ""
 
     pl_proj_val = (
@@ -814,40 +854,31 @@ def render_second_round_candidate_cards(
         if data_pl["q05"]
         else "Projeção preliminar (< 2% apurado)"
     )
-    pl_bg = "#dcfce7" if pl_prob_win > 50 else "#f1f5f9"
-    pl_color = "#166534" if pl_prob_win > 50 else "#475569"
     pl_lead = " (Liderança)" if pl_prob_win > 50 else ""
 
     if has_projection:
+        pt_cls = "chance-lider" if pt_prob_win >= 50 else "chance-secundario"
+        pl_cls = "chance-lider" if pl_prob_win > 50 else "chance-secundario"
         pt_footer_html = (
-            f'<div style="margin-top: 10px; padding: 6px 10px; background: {pt_bg}; '
-            f"border-radius: 6px; font-size: 0.84rem; font-weight: 600; "
-            f'color: {pt_color};">'
+            f'<div class="chance-vitoria-box {pt_cls}">'
             f"🏆 Chance de Vitória: {pt_prob_win:.1f}%{pt_lead}"
             f"</div>"
         )
         pl_footer_html = (
-            f'<div style="margin-top: 10px; padding: 6px 10px; background: {pl_bg}; '
-            f"border-radius: 6px; font-size: 0.84rem; font-weight: 600; "
-            f'color: {pl_color};">'
+            f'<div class="chance-vitoria-box {pl_cls}">'
             f"🏆 Chance de Vitória: {pl_prob_win:.1f}%{pl_lead}"
             f"</div>"
         )
     else:
-        preliminar_style = (
-            "margin-top: 10px; padding: 6px 10px; background: #f8fafc; "
-            "border-radius: 6px; font-size: 0.82rem; font-weight: 600; "
-            "color: #64748b; border: 1px dashed #cbd5e1;"
-        )
         pt_footer_html = (
-            f'<div style="{preliminar_style}">'
-            f"⏳ Projeção consolidada e IC a partir de 2,0% apurado"
-            f"</div>"
+            '<div class="chance-vitoria-box chance-preliminar">'
+            "⏳ Projeção consolidada e IC a partir de 2,0% apurado"
+            "</div>"
         )
         pl_footer_html = (
-            f'<div style="{preliminar_style}">'
-            f"⏳ Projeção consolidada e IC a partir de 2,0% apurado"
-            f"</div>"
+            '<div class="chance-vitoria-box chance-preliminar">'
+            "⏳ Projeção consolidada e IC a partir de 2,0% apurado"
+            "</div>"
         )
 
     col1, col2 = st.columns(2)
@@ -855,13 +886,12 @@ def render_second_round_candidate_cards(
     with col1:
         st.markdown(
             f"""
-            <div class="card-candidato" style="border-left: 6px solid #e34948;">
+            <div class="card-candidato card-candidato-pt">
                 <div class="card-cand-header">
                     <span class="card-nome">Lula</span>
-                    <span class="badge-partido"
-                          style="background: #fee2e2; color: #991b1b;">PT · 13</span>
+                    <span class="badge-partido badge-partido-pt">PT · 13</span>
                 </div>
-                <div class="card-projecao" style="color: #e34948;">
+                <div class="card-projecao card-projecao-pt">
                     {pt_proj_val}
                 </div>
                 <div class="card-faixa">
@@ -879,13 +909,12 @@ def render_second_round_candidate_cards(
     with col2:
         st.markdown(
             f"""
-            <div class="card-candidato" style="border-left: 6px solid #2a78d6;">
+            <div class="card-candidato card-candidato-pl">
                 <div class="card-cand-header">
                     <span class="card-nome">Flávio Bolsonaro</span>
-                    <span class="badge-partido"
-                          style="background: #dbeafe; color: #1e40af;">PL · 22</span>
+                    <span class="badge-partido badge-partido-pl">PL · 22</span>
                 </div>
-                <div class="card-projecao" style="color: #2a78d6;">
+                <div class="card-projecao card-projecao-pl">
                     {pl_proj_val}
                 </div>
                 <div class="card-faixa">
@@ -941,8 +970,9 @@ def render_polling_status_box(
     Raises:
         None.
     """
-    badge_bg = "#dcfce7" if is_window_open or is_auto_active else "#fef3c7"
-    badge_fg = "#15803d" if is_window_open or is_auto_active else "#92400e"
+    badge_cls = (
+        "status-badge-active" if is_window_open or is_auto_active else "status-badge-waiting"
+    )
     badge_title = (
         "🟢 MONITORAMENTO AUTOMÁTICO ATIVO (A CADA 5 MIN)"
         if is_window_open or is_auto_active
@@ -950,17 +980,10 @@ def render_polling_status_box(
     )
 
     tse_time_html = (
-        f' · Atualização TSE: <strong style="color: #0f172a;">{tse_timestamp_str}</strong>'
-        if tse_timestamp_str
-        else ""
+        f" · Atualização TSE: <strong>{tse_timestamp_str}</strong>" if tse_timestamp_str else ""
     )
 
-    msg_html = (
-        f'<div style="margin-top: 10px; font-size: 0.82rem; color: #475569;">'
-        f"ℹ️ {status_message}</div>"
-        if status_message
-        else ""
-    )
+    msg_html = f'<div class="status-msg">ℹ️ {status_message}</div>' if status_message else ""
 
     if totalized_sections is not None and total_sections is not None and total_sections > 0:
         sec_p = (
@@ -990,53 +1013,37 @@ def render_polling_status_box(
             elec_tot_str = "–"
             elec_all_str = "–"
 
-        lbl_style = (
-            "font-size: 0.78rem; text-transform: uppercase; "
-            "color: #64748b; font-weight: 700; letter-spacing: 0.5px;"
-        )
-        sec_sub = (
-            f'<span style="font-size: 0.90rem; font-weight: 500; color: #475569;">'
-            f"({sec_tot_str} de {sec_all_str})</span>"
-        )
-        elec_sub = (
-            f'<span style="font-size: 0.90rem; font-weight: 500; color: #475569;">'
-            f"({elec_tot_str} de {elec_all_str})</span>"
-        )
+        sec_sub = f'<span class="status-sub">({sec_tot_str} de {sec_all_str})</span>'
+        elec_sub = f'<span class="status-sub">({elec_tot_str} de {elec_all_str})</span>'
         stats_html = (
-            '<div style="display: flex; gap: 28px; margin-top: 14px; flex-wrap: wrap;">'
-            "<div>"
-            f'<div style="{lbl_style}">Seções Totalizadas (TSE Oficial)</div>'
-            '<div style="font-size: 1.35rem; font-weight: 800; color: #0f172a; margin-top: 2px;">'
-            f"{sec_pct_str} {sec_sub}"
+            '<div class="status-grid">'
+            '<div class="status-item">'
+            '<div class="status-lbl">Seções Totalizadas (TSE Oficial)</div>'
+            f'<div class="status-val">{sec_pct_str} {sec_sub}</div>'
             "</div>"
-            "</div>"
-            '<div style="border-left: 1px solid #e2e8f0; padding-left: 24px;">'
-            f'<div style="{lbl_style}">Eleitorado em Seções Apuradas</div>'
-            '<div style="font-size: 1.35rem; font-weight: 800; color: #0f172a; margin-top: 2px;">'
-            f"{elec_pct_str} {elec_sub}"
-            "</div>"
+            '<div class="status-item status-item-divider">'
+            '<div class="status-lbl">Eleitorado em Seções Apuradas</div>'
+            f'<div class="status-val">{elec_pct_str} {elec_sub}</div>'
             "</div>"
             "</div>"
         )
     else:
         curr_str = f"{current_pct:.2f}%".replace(".", ",")
         stats_html = (
-            '<div style="margin-top: 10px; font-size: 0.90rem; color: #334155;">'
-            'Totalização Oficial no TSE: <strong style="font-size: 1.1rem; color: #0f172a;">'
+            '<div style="margin-top: 10px; font-size: 0.90rem; color: var(--texto-mut);">'
+            "Totalização Oficial no TSE: "
+            '<strong style="font-size: 1.1rem; color: var(--texto-card);">'
             f"{curr_str}</strong>"
             "</div>"
         )
 
     container_html = (
-        '<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; '
-        'padding: 16px 20px; margin-bottom: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">'
-        '<div style="display: flex; justify-content: space-between; align-items: center; '
-        'flex-wrap: wrap; gap: 8px;">'
-        f'<span style="background: {badge_bg}; color: {badge_fg}; font-weight: 700; '
-        f'padding: 4px 10px; border-radius: 20px; font-size: 0.78rem;">'
+        '<div class="status-box-container">'
+        '<div class="status-box-header">'
+        f'<span class="status-badge {badge_cls}">'
         f"{badge_title}"
         "</span>"
-        f'<span style="font-size: 0.85rem; color: #64748b;">'
+        f'<span class="status-time">'
         f"Última verificação: <strong>{last_check_str}</strong>{tse_time_html}"
         "</span>"
         "</div>"
@@ -1067,3 +1074,266 @@ def render_polling_log_table(log_entries: list[dict[str, Any]]) -> None:
 
     df_log = pd.DataFrame(log_entries)
     st.dataframe(df_log, use_container_width=True, hide_index=True)
+
+
+def render_second_round_validation_panel(
+    latest_point: dict[str, Any] | None,
+    validation_summary: dict[str, Any],
+) -> None:
+    """Renderiza o painel de KPIs de auditoria retroativa do Modelo V2 frente ao resultado TSE.
+
+    Args:
+        latest_point: Ponto avaliado no marco percentual selecionado pelo usuario.
+        validation_summary: Indicadores consolidados retornados por
+            ``summarize_second_round_validation``.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    final_map = validation_summary.get("final_oficial") or {"PT": 51.77, "PL": 48.23}
+    f_pt = float(final_map.get("PT", 51.77))
+    f_pl = float(final_map.get("PL", 48.23))
+    margin_pp = abs(f_pt - f_pl)
+    winner_name = "Lula (PT)" if f_pt >= f_pl else "Flávio (PL)"
+
+    metrics = (latest_point.get("metrics") or {}) if latest_point else {}
+    mod_mae = metrics.get("model_mae_pp")
+    raw_mae = metrics.get("raw_mae_pp")
+    mae_gain = metrics.get("mae_gain_pp")
+    covered_now = metrics.get("ci_90_covered")
+
+    if mod_mae is not None and raw_mae is not None:
+        mae_str = f"{float(mod_mae):.2f} pp".replace(".", ",")
+        raw_str = f"{float(raw_mae):.2f} pp".replace(".", ",")
+        if mae_gain is not None and float(mae_gain) > 0.0:
+            gain_s = f"{float(mae_gain):.2f} pp".replace(".", ",")
+            sub_mae = f"Urna bruta: {raw_str} · Modelo reduziu {gain_s} de viés"
+        else:
+            sub_mae = f"Erro da urna bruta neste marco: {raw_str}"
+    else:
+        mae_str = "Preliminar"
+        raw_s = f"{float(raw_mae):.2f} pp".replace(".", ",") if raw_mae is not None else "–"
+        sub_mae = f"Aguardando ≥ 2,0% apurado (Urna bruta: {raw_s})"
+
+    cov_rate = validation_summary.get("ci_90_coverage_pct")
+    cov_rate_str = (
+        f"{float(cov_rate):.1f}% das ondas".replace(".", ",") if cov_rate is not None else "–"
+    )
+    if covered_now is True:
+        cov_main = "✅ Dentro do IC 90%"
+        cov_sub = f"Cobertura global na série: {cov_rate_str}"
+    elif covered_now is False:
+        cov_main = "⚠️ Fora do IC 90%"
+        cov_sub = f"Cobertura global na série: {cov_rate_str}"
+    else:
+        cov_main = "⏳ Aguardando ≥ 2%"
+        cov_sub = "Intervalo liberado a partir de 2,0% apurado"
+
+    call_pct = validation_summary.get("statistical_call_pct")
+    call_time = validation_summary.get("statistical_call_time")
+    mean_mod = validation_summary.get("mean_model_mae_pp")
+    if call_pct is not None:
+        call_val = f"{float(call_pct):.1f}% apurado".replace(".", ",")
+        time_note = f"às {call_time} BRT" if call_time else ""
+        mean_note = (
+            f" · MAE médio: {float(mean_mod):.2f} pp".replace(".", ",")
+            if mean_mod is not None
+            else ""
+        )
+        call_sub = f"Probabilidade de vitória ≥ 95% {time_note}{mean_note}".strip()
+    else:
+        call_val = "Em evolução"
+        call_sub = "Avance o controle para atingir confiança ≥ 95%"
+
+    gabarito_val = f"{fmt_pct(f_pt, 2)} × {fmt_pct(f_pl, 2)}"
+    gabarito_sub = (
+        f"Eleito: {winner_name} · Vantagem final de "
+        f"{f'{margin_pp:.2f}'.replace('.', ',')} pp no TSE"
+    )
+
+    panel_html = (
+        '<div class="kpi-validacao-grid">'
+        '<div class="kpi-validacao-card" style="border-top: 3px solid var(--kpi-top-gabarito);">'
+        '<div class="kpi-validacao-label">Gabarito Oficial TSE (Final)</div>'
+        f'<div class="kpi-validacao-valor">{gabarito_val}</div>'
+        f'<div class="kpi-validacao-sub">{gabarito_sub}</div>'
+        "</div>"
+        '<div class="kpi-validacao-card" style="border-top: 3px solid #0d9488;">'
+        '<div class="kpi-validacao-label">Erro Absoluto da Projeção</div>'
+        f'<div class="kpi-validacao-valor">{mae_str}</div>'
+        f'<div class="kpi-validacao-sub">{sub_mae}</div>'
+        "</div>"
+        '<div class="kpi-validacao-card" style="border-top: 3px solid #3b82f6;">'
+        '<div class="kpi-validacao-label">Calibração do Intervalo (IC 90%)</div>'
+        f'<div class="kpi-validacao-valor">{cov_main}</div>'
+        f'<div class="kpi-validacao-sub">{cov_sub}</div>'
+        "</div>"
+        '<div class="kpi-validacao-card" style="border-top: 3px solid #16a34a;">'
+        '<div class="kpi-validacao-label">Consolidação Matemática (≥ 95%)</div>'
+        f'<div class="kpi-validacao-valor">{call_val}</div>'
+        f'<div class="kpi-validacao-sub">{call_sub}</div>'
+        "</div>"
+        "</div>"
+    )
+    st.markdown(panel_html, unsafe_allow_html=True)
+
+
+def render_second_round_history_table(points: list[dict[str, Any]]) -> None:
+    """Renderiza a tabela historica e de auditoria onda a onda especifica do 2º Turno.
+
+    Args:
+        points: Lista cronologica de pontos do 2º turno.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    if not points:
+        st.info("Nenhum registro histórico disponível para o 2º turno.")
+        return
+
+    table_rows: list[dict[str, str]] = []
+    for p in reversed(points):
+        t_str = str(p.get("t", ""))
+        x_val = float(p.get("x", 0.0))
+        x_str = (
+            f"{x_val:.2f}%".replace(".", ",") if x_val < 1.0 else f"{x_val:.1f}%".replace(".", ",")
+        )
+        obs = p.get("apurado") or {}
+        proj = p.get("projecao")
+        faixa = p.get("faixa") or {}
+        wp_map = p.get("win_probability") or {}
+        metrics = p.get("metrics") or {}
+
+        has_proj = proj is not None and x_val >= 2.0
+        pt_proj_cell = (
+            format_table_projection_cell("PT", proj, faixa) if has_proj else "– (Aguardando ≥ 2%)"
+        )
+        pl_proj_cell = (
+            format_table_projection_cell("PL", proj, faixa) if has_proj else "– (Aguardando ≥ 2%)"
+        )
+
+        wp_pt = wp_map.get("PT")
+        prob_str = (
+            f"{float(wp_pt) * 100.0:.1f}%".replace(".", ",")
+            if has_proj and wp_pt is not None
+            else "–"
+        )
+
+        raw_mae = metrics.get("raw_mae_pp")
+        mod_mae = metrics.get("model_mae_pp")
+        cov = metrics.get("ci_90_covered")
+
+        row: dict[str, str] = {
+            "Horário": t_str,
+            "% Apurado": x_str,
+            "Lula (PT) Urna": fmt_pct(obs.get("PT"), 2),
+            "Lula (PT) Projeção [IC 90%]": pt_proj_cell,
+            "Flávio (PL) Urna": fmt_pct(obs.get("PL"), 2),
+            "Flávio (PL) Projeção [IC 90%]": pl_proj_cell,
+            "Chance Vitória PT": prob_str,
+        }
+        if raw_mae is not None or mod_mae is not None:
+            row["Erro Urna (pp)"] = (
+                f"{float(raw_mae):.2f}".replace(".", ",") if raw_mae is not None else "–"
+            )
+            row["Erro Modelo V2 (pp)"] = (
+                f"{float(mod_mae):.2f}".replace(".", ",")
+                if has_proj and mod_mae is not None
+                else "–"
+            )
+            row["No IC 90%?"] = "Sim" if cov is True else ("Não" if cov is False else "–")
+        table_rows.append(row)
+
+    st.dataframe(table_rows, hide_index=True, use_container_width=True)
+
+
+def render_second_round_state_table(states_data: list[dict[str, Any]]) -> None:
+    """Renderiza a tabela estadual de projecao e validacao retroativa do 2º Turno (27 UFs + ZZ).
+
+    Args:
+        states_data: Lista de dicionarios por UF gerada por
+            ``generate_second_round_state_projections``.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    if not states_data:
+        st.info("Dados estaduais do 2º turno ainda não disponíveis.")
+        return
+
+    st.markdown(
+        """
+        <p style="font-size: 0.88rem; color: var(--texto-mut); margin-bottom: 8px;">
+            Comparação em cada estado (UF + Exterior ZZ) entre os votos parciais na urna no marco
+            selecionado, a projeção estadual do Modelo V2 e o resultado final homologado no TSE.
+        </p>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col_sort, _ = st.columns([2, 3])
+    with col_sort:
+        sort_mode = st.selectbox(
+            "Ordenar estados por:",
+            options=[
+                "Maior Colégio Eleitoral (SP, MG, RJ, BA...)",
+                "Mais Apurados Primeiro (% Apurado)",
+                "Menor Erro do Modelo V2 (pp)",
+                "Ordem Alfabética (UF)",
+            ],
+            index=0,
+            key="sort_uf_table_2t",
+        )
+
+    sorted_states = list(states_data)
+    if sort_mode.startswith("Maior"):
+        sorted_states.sort(key=lambda s: UF_ELECTORATE_WEIGHT.get(str(s["uf"]), 0.05), reverse=True)
+    elif sort_mode.startswith("Mais"):
+        sorted_states.sort(key=lambda s: float(s.get("x", 0.0)), reverse=True)
+    elif sort_mode.startswith("Menor"):
+        sorted_states.sort(key=lambda s: float(s.get("erro_modelo_pp", 0.0)))
+    else:
+        sorted_states.sort(key=lambda s: str(s["uf"]))
+
+    formatted_rows: list[dict[str, str]] = []
+    for s in sorted_states:
+        uf = str(s["uf"])
+        x_val = float(s.get("x", 0.0))
+        x_str = f"{x_val:.1f}%".replace(".", ",")
+        obs_pt = s.get("apurado_PT")
+        proj_pt = float(s.get("PT", 50.0))
+        final_pt = float(s.get("final_PT", 50.0))
+        prior_1t = float(s.get("prior_1t_PT", 50.0))
+        err_pp = float(s.get("erro_modelo_pp", abs(proj_pt - final_pt)))
+
+        peso_str = (
+            f"{UF_ELECTORATE_WEIGHT[uf]:.1f}%".replace(".", ",")
+            if uf in UF_ELECTORATE_WEIGHT
+            else "0,5%"
+        )
+        lider_final = "Lula (PT)" if final_pt >= 50.0 else "Flávio (PL)"
+
+        formatted_rows.append(
+            {
+                "UF": uf,
+                "Peso Brasil": peso_str,
+                "% Apurado": x_str,
+                "Lula (PT) Urna Parcial": fmt_pct(obs_pt, 2) if obs_pt is not None else "–",
+                "Lula (PT) Projeção V2": fmt_pct(proj_pt, 2),
+                "Lula (PT) Final TSE 2T": fmt_pct(final_pt, 2),
+                "1º Turno Bilateral (PT)": fmt_pct(prior_1t, 2),
+                "Erro Modelo (pp)": f"{err_pp:.2f} pp".replace(".", ","),
+                "Vencedor UF": lider_final,
+            }
+        )
+
+    st.dataframe(formatted_rows, hide_index=True, use_container_width=True)

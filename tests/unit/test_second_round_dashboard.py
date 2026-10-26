@@ -354,3 +354,6 @@ def test_slider_quick_jump_step_and_bounds() -> None:
 
     target_start = max(0.25, min(100.0, 0.25))
     assert target_start == 0.25
+
+    default_2t_val = 10.0
+    assert max(0.25, min(100.0, default_2t_val)) == 10.0

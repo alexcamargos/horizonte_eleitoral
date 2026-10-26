@@ -590,7 +590,7 @@ def _render_second_round_validation_tab() -> None:
     )
 
     if "slider_2t_val" not in st.session_state:
-        st.session_state.slider_2t_val = 100.0
+        st.session_state.slider_2t_val = 10.0
 
     def _set_wave_2t(target: float) -> None:
         """Define o percentual de apuracao do 2º turno de forma segura."""
@@ -598,13 +598,13 @@ def _render_second_round_validation_tab() -> None:
 
     def _step_wave_2t(delta: float) -> None:
         """Incrementa ou decrementa o percentual do 2º turno em passos de 10%."""
-        curr = float(st.session_state.get("slider_2t_val", 100.0))
+        curr = float(st.session_state.get("slider_2t_val", 10.0))
         st.session_state.slider_2t_val = max(
             0.25,
             min(100.0, round((curr + delta) * 4.0) / 4.0),
         )
 
-    col_b1, col_b2, col_b3, col_b4 = st.columns(4)
+    col_b1, col_b2, col_b3, col_b4, col_b5 = st.columns(5)
     col_b1.button(
         "⏪ 0,25% (17h–19h)",
         use_container_width=True,
@@ -613,20 +613,27 @@ def _render_second_round_validation_tab() -> None:
         args=(0.25,),
     )
     col_b2.button(
+        "🎯 10% (Padrão)",
+        use_container_width=True,
+        key="btn_2t_val_10",
+        on_click=_set_wave_2t,
+        args=(10.0,),
+    )
+    col_b3.button(
         "◀️ -10%",
         use_container_width=True,
         key="btn_2t_val_m10",
         on_click=_step_wave_2t,
         args=(-10.0,),
     )
-    col_b3.button(
+    col_b4.button(
         "▶️ +10%",
         use_container_width=True,
         key="btn_2t_val_p10",
         on_click=_step_wave_2t,
         args=(10.0,),
     )
-    col_b4.button(
+    col_b5.button(
         "⏩ Fim (100%)",
         use_container_width=True,
         key="btn_2t_val_100",

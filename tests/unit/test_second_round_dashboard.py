@@ -481,3 +481,22 @@ def test_build_live_point_round_1_and_round_2() -> None:
     assert pt_2t["apurado"]["PT"] == 52.5
     assert pt_2t["apurado"]["PL"] == 47.5
     assert pt_2t["x_sections"] == 1.0
+
+    # Valida simulacao rapida via build_live_replay_point
+    sample_catalog = [
+        {
+            "section_id": "SP:0001:0001",
+            "state": "SP",
+            "municipality_code": "00001",
+            "zone": "0001",
+            "section": "0001",
+            "electorate": 300,
+            "valid_votes": 250,
+            "group_votes": (("OUTROS", 25), ("PL", 100), ("PT", 125)),
+            "historical_shares": (("OUTROS", 0.10), ("PL", 0.40), ("PT", 0.50)),
+            "match_quality": "EXACT",
+        }
+    ]
+    sim_pt_2t = build_live_replay_point(sample_catalog, wave=0.10, round_num=2)
+    assert sim_pt_2t["round"] == 2
+    assert "apurado" in sim_pt_2t

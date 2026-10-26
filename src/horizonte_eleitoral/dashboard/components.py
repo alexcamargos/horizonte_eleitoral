@@ -1365,10 +1365,10 @@ def render_general_model_documentation() -> None:
             """
             ### Fundamentação Científica e Arquitetura do Modelo HORIZON-MRP
 
-            O **Horizonte Eleitoral** é um sistema analítico de alta precisão desenhado para estimar
-            o resultado final das eleições presidenciais brasileiras antes da conclusão da apuração
-            oficial pelo Tribunal Superior Eleitoral (TSE), eliminando as ilusões causadas pela ordem
-            de transmissão das urnas eletrônicas.
+            O **Horizonte Eleitoral** é um sistema analítico de alta precisão desenhado para
+            estimar o resultado final das eleições presidenciais brasileiras antes da conclusão
+            da apuração oficial pelo Tribunal Superior Eleitoral (TSE), eliminando as ilusões
+            causadas pela ordem de transmissão das urnas eletrônicas.
             """
         )
 
@@ -1391,14 +1391,16 @@ def render_general_model_documentation() -> None:
             st.markdown(
                 """
                 #### 2. O Modelo Preditivo: HORIZON-MRP
-                - **O que significa:** *Hierarchical Optimal Regression & Inferred Zonal Outcomes Network*.
+                - **Significado:** *Hierarchical Optimal Regression & Inferred Zonal Outcomes*.
                 - **Estrutura Multinível em 4 Camadas:**
                   1. **Nível 1 (Nacional):** Efeito nacional ponderado pelo Censo Eleitoral
                      (Sudeste: 42,8%, Nordeste: 27,1%, Sul: 14,8%, Norte: 8,0%, Centro-Oeste: 7,0%)
-                     com ancoragem no prior histórico para evitar contaminação por regiões precoces.
-                  2. **Nível 2 (Regional):** Encolhimento bayesiano das 5 macro-regiões ($K_{\\text{reg}}=30$).
-                  3. **Nível 3 (Estadual):** Encolhimento específico das 27 UFs ($K_{\\text{uf}}=20$).
-                  4. **Nível 4 (Municipal):** Ajuste fino modulado pelo Índice de Elasticidade Municipal (2018–2022).
+                     ancorado no prior nulo para evitar contaminação regional precoce.
+                  2. **Nível 2 (Regional):** Encolhimento bayesiano das 5 macro-regiões
+                     ($K_{\\text{reg}}=30$).
+                  3. **Nível 3 (Estadual):** Encolhimento específico das 27 UFs
+                     ($K_{\\text{uf}}=20$).
+                  4. **Nível 4 (Municipal):** Ajuste fino pelo Índice de Elasticidade Municipal.
                 """
             )
 
@@ -1408,14 +1410,13 @@ def render_general_model_documentation() -> None:
             st.markdown(
                 """
                 #### 3. Inovação: Swing Calibrado por Newton-Raphson
-                - **Eliminação do Viés de Jensen:** Abordagens ingênuas com softmax agregada sofrem
-                  da desigualdade de Jensen ($\\mathbb{E}[g(X)] \\neq g(\\mathbb{E}[X])$), gerando
-                  erros sistemáticos de até $+0,43$ pp.
-                - **Consistência Exata:** O HORIZON-MRP resolve a equação de consistência eleitoral por
-                  **Newton-Raphson amortecido**:
-                  $$\\sum_{i \\in \\text{Obs}} V_i \\frac{b_{ik} e^{\\delta_k}}{\\sum_m b_{im} e^{\\delta_m}} = Y_k^{\\text{obs}}$$
-                  Isso garante reconstrução exata dos votos observados e projeções estritamente
-                  válidas no simplex probabilístico.
+                - **Eliminação do Viés de Jensen:** Softmax agregadas sofrem da desigualdade de
+                  Jensen ($\\mathbb{E}[g(X)] \\neq g(\\mathbb{E}[X])$), gerando erros sistemáticos
+                  de até $+0,43$ pp.
+                - **Consistência Exata:** O HORIZON-MRP resolve a equação de consistência eleitoral
+                  por **Newton-Raphson amortecido** sobre os dados observados.
+                  Garante reconstrução exata dos votos observados e projeções estritamente válidas
+                  no simplex probabilístico.
                 """
             )
         with col_d4:
@@ -1426,9 +1427,10 @@ def render_general_model_documentation() -> None:
                   propaga incertezas em escala nacional, regional e municipal.
                 - **Correção de População Finita (FPC):** À medida que as urnas são abertas e
                   o eleitorado pendente tende a zero, o intervalo de credibilidade de 90%
-                  $[q_{05}, q_{95}]$ estreita-se gradativamente até colapsar monotonicamente em erro zero ($0,00$ pp).
-                - **Limiar de 2,0%:** Nenhuma projeção consolidada é liberada antes de 2% do eleitorado
-                  apurado, classificando números anteriores estritamente como preliminares.
+                  $[q_{05}, q_{95}]$ estreita-se gradativamente até colapsar monotonicamente
+                  em erro zero ($0,00$ pp).
+                - **Limiar de 2,0%:** Nenhuma projeção consolidada é liberada antes de 2% do
+                  eleitorado apurado, classificando números anteriores apenas como preliminares.
                 """
             )
 
@@ -1440,34 +1442,32 @@ def render_general_model_documentation() -> None:
                 <div class="model-card-box">
                     <div class="model-card-box-titulo">🔒 Zero Data Leakage</div>
                     <div class="model-card-box-desc">
-                        Nenhum cálculo tem acesso a dados do futuro. O corte temporal é estritamente cego
-                        para qualquer seção eleitoral cuja urna ainda não tenha sido oficialmente totalizada.
+                        Nenhum cálculo tem acesso a dados do futuro. O corte temporal é cego
+                        para qualquer seção eleitoral cuja urna ainda não foi totalizada.
                     </div>
                 </div>
                 <div class="model-card-box">
                     <div class="model-card-box-titulo">🛑 Consistência Failure-Stop</div>
                     <div class="model-card-box-desc">
-                        O motor de reconciliação valida a contagem de seções (EA16) com a totalização (EA20).
-                        Se houver divergência, o snapshot é marcado como DIVERGENTE e a publicação é bloqueada.
-                        Nunca alteramos votos observados.
+                        O reconciliador valida seções (EA16) com a totalização (EA20).
+                        Se houver divergência, o snapshot é bloqueado. Nunca alteramos votos.
                     </div>
                 </div>
                 <div class="model-card-box">
                     <div class="model-card-box-titulo">📦 Imutabilidade Append-Only</div>
                     <div class="model-card-box-desc">
-                        Respostas da API do TSE são armazenadas com hash SHA-256 e manifestos canônicos.
-                        Tentativas de sobrescrita com conteúdo distinto lançam erro de imutabilidade.
+                        Respostas da API do TSE são armazenadas com hash SHA-256 e manifestos.
+                        Sobrescritas com conteúdo distinto lançam erro de imutabilidade.
                     </div>
                 </div>
                 <div class="model-card-box">
                     <div class="model-card-box-titulo">⚡ Apache Parquet & DuckDB</div>
                     <div class="model-card-box-desc">
-                        499.206 seções pareadas de todo o Brasil processadas em armazenamento colunar Parquet
-                        com consultas analíticas em memória via DuckDB para resposta instantânea na navegação.
+                        499.206 seções pareadas processadas em formato colunar Parquet
+                        com consultas analíticas em memória via DuckDB para resposta ágil.
                     </div>
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-

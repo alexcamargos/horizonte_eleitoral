@@ -127,3 +127,43 @@ def test_normalize_ea20_parses_real_tse_nested_format() -> None:
     votes_dict = dict(totalization.candidate_group_votes)
     assert votes_dict["PT"] == 20000000
     assert votes_dict["PL"] == 18000000
+    assert totalization.scope == GeographicScope.BRAZIL
+    assert totalization.scope_code == "BR"
+
+
+def test_normalize_ea20_parses_uf_scope_from_tpabr_and_cdabr() -> None:
+    """Valida extracao de GeographicScope.STATE e sigla UF a partir de tpabr/cdabr do TSE.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+
+    Raises:
+        AssertionError: Se o escopo estadual nao for reconhecido corretamente.
+    """
+    payload_uf = b"""
+    {
+        "ele": "6258",
+        "t": "2",
+        "tpabr": "uf",
+        "cdabr": "ba",
+        "s": {"ts": "35000", "st": "28000"},
+        "e": {"te": "11200000", "est": "8960000"},
+        "v": {"vv": "7000000", "vb": "100000", "vn": "200000"},
+        "carg": [
+            {
+                "cd": "1",
+                "agr": [
+                    {"par": [{"cand": [{"n": "13", "vap": "5040000"}]}]},
+                    {"par": [{"cand": [{"n": "22", "vap": "1960000"}]}]}
+                ]
+            }
+        ]
+    }
+    """
+    tot_ba = normalize_ea20(payload_uf, round_num=2)
+    assert tot_ba.scope == GeographicScope.STATE
+    assert tot_ba.scope_code == "BA"
+    assert dict(tot_ba.candidate_group_votes) == {"PL": 1960000, "PT": 5040000}

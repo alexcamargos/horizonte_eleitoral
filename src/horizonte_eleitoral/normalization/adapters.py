@@ -196,13 +196,24 @@ def normalize_ea20(
     data = _safe_json_loads(body, "EA20")
     candidate_tax = dict(taxonomy or DEFAULT_CANDIDATE_TAXONOMY)
 
-    scope_str = str(data.get("abrangencia", data.get("st", "BR"))).upper()
-    try:
-        scope = GeographicScope(scope_str)
-    except ValueError:
-        scope = GeographicScope.BRAZIL
+    scope_str = (
+        str(data.get("abrangencia", data.get("tpabr", data.get("st", "BR")))).strip().upper()
+    )
+    if scope_str in ("MU", "MUN", "MUNICIPIO"):
+        scope = GeographicScope.MUNICIPALITY
+    else:
+        try:
+            scope = GeographicScope(scope_str)
+        except ValueError:
+            scope = GeographicScope.BRAZIL
 
-    scope_code = str(data.get("cd", data.get("cdAbr", scope.value)))
+    raw_code = data.get("cd", data.get("cdAbr", data.get("cdabr", scope.value)))
+    if scope in (GeographicScope.BRAZIL, GeographicScope.STATE):
+        scope_code = str(raw_code).strip().upper()
+    elif scope is GeographicScope.MUNICIPALITY:
+        scope_code = str(raw_code).strip().zfill(5)
+    else:
+        scope_code = str(raw_code).strip()
 
     total_electorate: int
     totalized_electorate: int
@@ -223,6 +234,9 @@ def normalize_ea20(
     if isinstance(s_val, dict):
         total_sections = _to_int(s_val.get("ts", s_val.get("te", 0)))
         totalized_sections = _to_int(s_val.get("st", s_val.get("ea_sec", s_val.get("s", 0))))
+    elif "st" in data and "sec_tot" not in data and "secoes_total" not in data and "te" not in data:
+        total_sections = _to_int(data.get("s", 0))
+        totalized_sections = _to_int(data.get("st", 0))
     else:
         total_sections = _to_int(data.get("sec_tot", data.get("secoes_total", data.get("te", 0))))
         totalized_sections = _to_int(

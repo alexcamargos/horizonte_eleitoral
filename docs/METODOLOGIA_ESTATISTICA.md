@@ -79,9 +79,9 @@ Em UFs sem nenhuma seção apurada ($N_u^{\text{obs}} = 0$, logo $\lambda_u = 0$
 
 ---
 
-## 3. Modelo Hierárquico Bayesiano V2 (MRP Calibrado com Encolhimento)
+## 3. HORIZON-MRP: Modelo Hierárquico Bayesiano V2 (MRP Calibrado com Encolhimento)
 
-O **HierarchicalBayesianModelV2** é o modelo ativo padrão do Horizonte Eleitoral. Ele integra a metodologia de Regressão Multinível e Pós-Estratificação (**MRP**) com o estimador de **swing log-ratio calibrado** via Newton-Raphson, eliminando por completo o viés de agregação não-linear decorrente da desigualdade de Jensen.
+O **HORIZON-MRP** (*Hierarchical Optimal Regression & Inferred Zonal Outcomes Network*), implementado pela classe `HierarchicalBayesianModelV2` (aliases `HorizonMRP` e `HierarchicalBayesianModel`), é o modelo preditivo ativo padrão do Horizonte Eleitoral. Ele integra a metodologia de Regressão Multinível e Pós-Estratificação (**MRP**) com o estimador de **swing log-ratio calibrado** via Newton-Raphson, eliminando por completo o viés de agregação não-linear decorrente da desigualdade de Jensen.
 
 ### 3.1 Estimação de Swing Log-Ratio Calibrada
 
@@ -198,9 +198,9 @@ Garantindo transição espacial contínua e sem singularidades numéricas.
 
 ## 6. Resultados Empíricos na Eleição de 2026 (499.206 Seções)
 
-O sistema foi rigorosamente validado contra os **499.206 boletins de urna reais** da eleição presidencial de 2026, comparando o Modelo V1 com o Modelo V2 nos marcos percentuais oficiais:
+O sistema foi rigorosamente validado contra os **499.206 boletins de urna reais** da eleição presidencial de 2026, comparando o modelo legado V1 com o **HORIZON-MRP** nos marcos percentuais oficiais:
 
-| Marco (% Apurado) | Apurado Bruto (PT / PL) | Projeção V2 (PT / PL) | Intervalo V2 90% PT | Intervalo V2 90% PL | Erro Médio Absoluto (V2) |
+| Marco (% Apurado) | Apurado Bruto (PT / PL) | Projeção HORIZON-MRP (PT / PL) | Intervalo 90% PT | Intervalo 90% PL | Erro Médio Absoluto (HORIZON-MRP) |
 |---|---|---|---|---|---|
 | **2.0%** (17:06) | 35.77% / 55.14% | **45.25% / 46.99%** | [44.66%, 45.80%] | [46.41%, 47.52%] | **0.06 pp** |
 | **5.0%** (17:15) | 35.62% / 55.35% | **45.32% / 46.87%** | [44.78%, 45.85%] | [46.34%, 47.38%] | **0.11 pp** |
@@ -211,7 +211,7 @@ O sistema foi rigorosamente validado contra os **499.206 boletins de urna reais*
 | **100.0%** (22:00) | **45.16% / 47.03%** | **45.16% / 47.03%** | [45.16%, 45.16%] | [47.03%, 47.03%] | **0.00 pp (Gabarito)** |
 
 ### Destaques da Evidência Empírica
-1. **Com apenas 2% do eleitorado apurado**, enquanto o apurado bruto exibia o PL com 55,14% contra 35,77% do PT (distorção regional de quase 20 pontos), o Modelo V2 consolidado com swing calibrado já projetava **PT 45.25% e PL 46.99%**, com um erro médio absoluto de apenas **0.06 pp** em relação ao resultado oficial final (45.16% vs 47.03%).
+1. **Com apenas 2% do eleitorado apurado**, enquanto o apurado bruto exibia o PL com 55,14% contra 35,77% do PT (distorção regional de quase 20 pontos), o HORIZON-MRP consolidado com swing calibrado já projetava **PT 45.25% e PL 46.99%**, com um erro médio absoluto de apenas **0.06 pp** em relação ao resultado oficial final (45.16% vs 47.03%).
 2. **O resultado final coube rigorosamente dentro da faixa de 90%** em todos os instantes temporais.
 3. **Probabilidade de 2º Turno:** O sistema estimou **100% de probabilidade de 2º turno** desde o marco de 2%, alertando corretamente a sociedade de que a eleição presidencial não seria decidida na primeira rodada.
 
@@ -236,7 +236,7 @@ A calibração e a acurácia dos modelos preditivos são auditadas continuamente
 
 Com o encerramento de **100,00% das seções** do 2º turno presidencial de 2026 (Eleição `6258`, **Lula PT · 13 `51,79%` (`64.256.232` votos) vs Flávio Bolsonaro PL · 22 `48,21%` (`59.826.041` votos)** em `5.716` municípios e `28` abrangências estaduais/exterior), o módulo `backtest.second_round_validation` reconstitui retroativamente cada marco sob **Zero Data Leakage** estrito (`catalog_2026_2t.parquet`), respeitando integralmente a cronologia real de 25/10/2026 — na qual a divulgação do TSE permaneceu **estacionada em `0,25%` entre `17h07` e `19h00` BRT** devido à prorrogação do horário de votação pelo STF, retomando o fluxo nacional somente **após as `19h00` BRT**:
 
-| Marco (% Eleitorado) | Horário BRT | Urna Bruta TSE (PT / PL) | Erro Urna Bruta | Projeção V2 (PT / PL) | Intervalo V2 90% PT | MAE Modelo V2 | Cobertura IC 90% |
+| Marco (% Eleitorado) | Horário BRT | Urna Bruta TSE (PT / PL) | Erro Urna Bruta | Projeção HORIZON-MRP (PT / PL) | Intervalo 90% PT | MAE HORIZON-MRP | Cobertura IC 90% |
 |---|---|---|---|---|---|---|---|
 | **0,25%** | 17:07–19:00 | 53,65% / 46,35% | 1,86 pp | *Preliminar (< 2% · Suspenso STF)* | — | — | — |
 | **1,0%** | 19:10 | 67,14% / 32,86% | 15,35 pp | *Preliminar (< 2,0%)* | — | — | — |
@@ -251,7 +251,7 @@ Com o encerramento de **100,00% das seções** do 2º turno presidencial de 2026
 | **90,0%** | 20:52 | 51,34% / 48,66% | 0,45 pp | **51,77% / 48,23%** | [51,76%, 51,79%] | **0,02 pp** | Sim |
 | **100,0%** | 23:21 | **51,79% / 48,21%** | **0,00 pp** | **51,79% / 48,21%** | [51,79%, 51,79%] | **0,00 pp** | Sim |
 
-- **Imunidade à "Falsa Virada" de Apuração (`19h46 – 20h24`):** Durante os 38 minutos em que Flávio Bolsonaro liderou a urna bruta (`20%` a `50%` apurado, com `PL` chegando a `51,02%` às `19h55` enquanto a Bahia prorrogada até as 19h iniciava sua transmissão), o Modelo V2 nunca se deixou enganar pelo viés geográfico e manteve **Lula (PT) projetado entre `51,68%` e `51,73%`** com erro inferior a **`0,11 pp`**.
+- **Imunidade à "Falsa Virada" de Apuração (`19h46 – 20h24`):** Durante os 38 minutos em que Flávio Bolsonaro liderou a urna bruta (`20%` a `50%` apurado, com `PL` chegando a `51,02%` às `19h55` enquanto a Bahia prorrogada até as 19h iniciava sua transmissão), o HORIZON-MRP nunca se deixou enganar pelo viés geográfico e manteve **Lula (PT) projetado entre `51,68%` e `51,73%`** com erro inferior a **`0,11 pp`**.
 - **Calibração Probabilística:** O modelo acertou o vencedor em **100% dos marcos (`>= 2%`)** e manteve o resultado oficial final (`51,79%`) dentro do intervalo de credibilidade de 90% em **95,2% das ondas** (`20/21`, sendo `100%` de cobertura contínua de `5%` a `100%`).
 
 ---

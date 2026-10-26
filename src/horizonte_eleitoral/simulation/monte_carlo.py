@@ -122,6 +122,19 @@ class MonteCarloSimulator:
                 sorted(((g, obs_votes_dict[g]) for g in groups), key=lambda x: x[0])
             )
             has_majority = max(obs_shares_dict.values()) > 0.50
+            second_round_det = 0.0 if (len(groups) <= 2 or has_majority) else 1.0
+            if total_obs_valid > 0:
+                max_v = max(obs_votes_dict.values())
+                leaders = {g for g in groups if obs_votes_dict[g] == max_v}
+            else:
+                leaders = set(groups)
+            win_share = round(1.0 / len(leaders), 4) if leaders else 0.0
+            win_probs_det = tuple(
+                sorted(
+                    ((g, win_share if g in leaders else 0.0) for g in groups),
+                    key=lambda x: x[0],
+                )
+            )
             return SimulationSummary(
                 projected_mean_shares=obs_tuple,
                 q05_shares=obs_tuple,
@@ -129,10 +142,11 @@ class MonteCarloSimulator:
                 q95_shares=obs_tuple,
                 projected_mean_votes=votes_tuple,
                 observed_shares=obs_tuple,
-                second_round_probability=0.0 if has_majority else 1.0,
+                second_round_probability=second_round_det,
                 total_projected_valid_mean=total_obs_valid,
                 num_draws=self._num_draws,
                 seed=self._seed,
+                candidate_win_probabilities=win_probs_det,
             )
 
         # 2. Extracao de efeitos hierarquicos baseados estritamente nas secoes observadas

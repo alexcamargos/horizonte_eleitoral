@@ -10,7 +10,7 @@ Este documento reúne os **Registros de Decisão de Arquitetura (Architecture De
 - [ADR 002: Reconciliação Estrita de Snapshots e Política "Failure-Stop" contra Divergências](#adr-002-reconciliação-estrita-de-snapshots-e-política-failure-stop-contra-divergências)
 - [ADR 003: Publicação Atômica via os.replace e Desacoplamento da Apresentação](#adr-003-publicação-atômica-via-osreplace-e-desacoplamento-da-apresentação)
 - [ADR 004: Armazenamento Colunar Apache Parquet e Motor Analítico DuckDB](#adr-004-armazenamento-colunar-apache-parquet-e-motor-analítico-duckdb)
-- [ADR 005: Substituição do Modelo Hierárquico V1 pelo Modelo V2 com Elasticidade Municipal](#adr-005-substituição-do-modelo-hierárquico-v1-pelo-modelo-v2-com-elasticidade-municipal)
+- [ADR 005: Substituição do Modelo Hierárquico V1 pelo HORIZON-MRP (V2) com Elasticidade Municipal](#adr-005-substituição-do-modelo-hierárquico-v1-pelo-horizon-mrp-v2-com-elasticidade-municipal)
 - [ADR 006: Coleta Não-Invasiva na API do TSE (Rate Limiting, Polling 304 e Gate das 17h)](#adr-006-coleta-não-invasiva-na-api-do-tse-rate-limiting-polling-304-e-gate-das-17h)
 - [ADR 007: Cascata Hierárquica Espacial de Pareamento Geográfico com Penalização de Incerteza](#adr-007-cascata-hierárquica-espacial-de-pareamento-geográfico-com-penalização-de-incerteza)
 
@@ -98,23 +98,23 @@ A base eleitoral brasileira de 2026 possui **499.206 seções eleitorais**. Nos 
 
 ---
 
-## ADR 005: Substituição do Modelo Hierárquico V1 pelo Modelo V2 com Elasticidade Municipal
+## ADR 005: Substituição do Modelo Hierárquico V1 pelo HORIZON-MRP (V2) com Elasticidade Municipal
 
 ### Status
-Aprovado e Implementado (V1 arquivado como baseline legado).
+Aprovado e Implementado (V1 arquivado como baseline legado; HORIZON-MRP estabelecido como modelo oficial).
 
 ### Contexto
 A primeira versão do modelo multinível (`HierarchicalBayesianModelV1`) utilizava pós-estratificação regional e encolhimento bayesiano estático em 3 níveis (Nacional, Regional e Estadual). Contudo, testes empíricos em larga escala revelaram que o modelo V1 demorava para reagir em municípios que historicamente apresentavam grande volatilidade eleitoral (alta sensibilidade a ciclos econômicos e demográficos).
 
 ### Decisão
-1. Criação do `HierarchicalBayesianModelV2` como o modelo ativo oficial do projeto.
+1. Criação do **HORIZON-MRP** (*Hierarchical Optimal Regression & Inferred Zonal Outcomes Network*), implementado na classe `HierarchicalBayesianModelV2` (aliases `HorizonMRP` e `HierarchicalBayesianModel`), como o modelo ativo oficial do projeto.
 2. Incorporação do `MunicipalElasticityIndex` a partir da série histórica multi-ciclo 2018–2022.
 3. Modulação dinâmica do fator de encolhimento municipal $K_{\text{eff}} = \frac{K_{\text{muni}}}{1 + s \cdot \text{vol}_m}$, permitindo que municípios voláteis acelerem o aprendizado da evidência de 2026, enquanto municípios estáveis preservem a ancoragem na base histórica de 2022.
 4. O `HierarchicalBayesianModelV1` foi mantido no código apenas como artefato arquivado para fins de governança, auditoria histórica e comparação no módulo `horizonte_eleitoral.backtest.compare`.
 
 ### Consequências
 - **Positivas:** Redução do MAE nacional de 0,55 pp para 0,30 pp logo aos 2% do eleitorado apurado; redução no erro de saldo entre os líderes (Lead Error).
-- **Consistência:** A interface gráfica e os ensaios operacionais utilizam exclusivamente o Modelo V2.
+- **Consistência:** A interface gráfica e os ensaios operacionais utilizam exclusivamente o HORIZON-MRP.
 
 ---
 

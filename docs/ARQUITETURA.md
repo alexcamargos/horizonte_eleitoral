@@ -39,7 +39,7 @@ flowchart TD
     end
 
     subgraph PREDICTIVE_ENGINE["4. Motor de Projeção Estatística"]
-        MRP_MODEL["HierarchicalBayesianModelV2 (MRP com Shrinkage Adaptativo)"]
+        MRP_MODEL["HORIZON-MRP / HierarchicalBayesianModelV2 (MRP com Shrinkage Adaptativo)"]
         BASELINES["4 Baselines de Referência (Raw, NoSwing, NatSwing, UFShrinkage)"]
         SIMULATOR["MonteCarloSimulator (2.000 Sorteios Estocásticos)"]
     end
@@ -89,7 +89,7 @@ Cada componente possui responsabilidade estrita e bem delimitada:
 | **Normalization** | `src/.../normalization/` | JSONs brutos do TSE | Dataclasses canônicas normalizadas | Converter payloads mutáveis e variantes de formato do TSE para objetos de domínio estritos. |
 | **Reconciliation** | `src/.../reconciliation/` | Estados das seções e totalização | Snapshot consistente ou diagnóstico de erro | Garantir que a soma dos boletins de urna individuais confere com os agregados oficiais. Bloqueia projeções se houver inconsistência. |
 | **Historical & Spatial** | `src/.../historical/` | Dados TSE 2018 e 2022 | Matriz de pareamento e elasticidade municipal | Mapeamento geográfico hierárquico em cascata (Haversine) e cálculo do índice de volatilidade histórica municipal. |
-| **Predictive Models** | `src/.../models/` | Seções observadas e pendentes | Projeção pontual de votos e shares | Implementar modelos de previsão (Baselines 1 a 4 e Modelo Hierárquico Bayesiano V2 com shrinkage adaptativo). |
+| **Predictive Models** | `src/.../models/` | Seções observadas e pendentes | Projeção pontual de votos e shares | Implementar modelos de previsão (Baselines 1 a 4 e HORIZON-MRP / Modelo Hierárquico Bayesiano V2 com shrinkage adaptativo). |
 | **Simulation** | `src/.../simulation/` | Projeção pontual e frações pendentes | Intervalos de 90% e Probabilidade de 2º Turno | Executar 2.000 sorteios estocásticos vetorizados propagando incertezas nacional, regional e municipal. |
 | **Publishing** | `src/.../publishing/` | Payload consolidado | Arquivo `latest.json` imutável | Escrita atômica via arquivo temporário seguido de `os.replace`. Garante que leitores concorrentes nunca leiam JSON corrompido. |
 | **API** | `src/.../api/` | Arquivos de projeção persistidos | Endpoints HTTP JSON | Expor rotas REST de leitura para clientes externos (mídias, portais, pesquisadores). |
@@ -152,7 +152,7 @@ src/horizonte_eleitoral/
 │   ├── base.py                  # Protocolo canônico ForecastModel, SectionObservation, PendingSection
 │   ├── baselines.py             # 4 Baselines de referência (Raw, NoSwing, NatSwing, UFShrinkage)
 │   ├── hierarchical.py          # Modelo Hierárquico Bayesiano V1 (LEGADO / ARQUIVADO)
-│   ├── hierarchical_v2.py       # Modelo Hierárquico Bayesiano V2 (MODELO ATIVO PADRÃO)
+│   ├── hierarchical_v2.py       # HORIZON-MRP / Modelo Hierárquico Bayesiano V2 (MODELO ATIVO PADRÃO)
 │   └── swing.py                 # Estimadores de swing log-ratio (calibrado por Newton-Raphson e agregado legado)
 │
 ├── normalization/               # Adaptadores dos Arquivos TSE (EA11..EA20)

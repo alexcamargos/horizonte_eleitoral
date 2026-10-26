@@ -715,8 +715,8 @@ def build_live_point(
                 if code in group_map
             }
             p_2t = (
-                round(payload.probability_second_round, 4)
-                if payload.probability_second_round is not None
+                round(payload.second_round_probability, 4)
+                if payload.second_round_probability is not None
                 else 1.0
             )
 

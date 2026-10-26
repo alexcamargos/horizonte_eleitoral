@@ -22,6 +22,7 @@ from horizonte_eleitoral.publishing.models import PublishedProjectionPayload
 from horizonte_eleitoral.publishing.publisher import AtomicPublisher
 from horizonte_eleitoral.reconciliation.reconciler import ReconciliationEngine
 from horizonte_eleitoral.simulation.monte_carlo import MonteCarloSimulator
+from horizonte_eleitoral.simulation.second_round_live import project_second_round_live
 
 
 class SyntheticSection(TypedDict):
@@ -432,11 +433,15 @@ def simulate_2026_second_round_checkpoint(
     sections_catalog: list[SyntheticSection] | list[dict[str, Any]] | None = None,
     by_electorate: bool = True,
     observed_at: datetime | None = None,
+    live_totalization: NormalizedTotalization | None = None,
+    state_totalizations: Mapping[str, NormalizedTotalization] | None = None,
 ) -> PublishedProjectionPayload:
     """Executa a simulacao da apuracao do segundo turno majoritario de 2026 (PT vs PL).
 
     Calcula a projecao com o modelo hierarquico bayesiano v2, faixas de credibilidade de 90%
-    e probabilidade de vitoria majoritaria (superacao da maioria absoluta de 50%).
+    e probabilidade de vitoria majoritaria (superacao da maioria absoluta de 50%). Quando
+    ``live_totalization`` e fornecido, condiciona o modelo diretamente aos votos reais
+    apurados pelo TSE no 2º turno (e as totalizacoes por UF em ``state_totalizations``).
 
     Args:
         progress_pct: Marco percentual de totalizacao (ex: 0.10 para 10%).
@@ -446,6 +451,8 @@ def simulate_2026_second_round_checkpoint(
         sections_catalog: Catalogo opcional de secoes reais prontas para simular.
         by_electorate: Se True, corte baseado em eleitorado; se False, em contagem de secoes.
         observed_at: Timestamp UTC de observacao da rodada eleitoral.
+        live_totalization: Totalizacao nacional oficial do TSE (BR) em tempo real, se disponivel.
+        state_totalizations: Totalizacoes oficiais por UF em tempo real, se disponiveis.
 
     Returns:
         PublishedProjectionPayload contendo a projecao publicada do 2º turno.
@@ -463,6 +470,18 @@ def simulate_2026_second_round_checkpoint(
         rng = np.random.default_rng(seed)
         resolved_catalog = _generate_synthetic_sections(num_sections, rng)
 
+    election_day = observed_at or datetime(2026, 10, 25, 18, 0, tzinfo=UTC)
+
+    if live_totalization is not None:
+        return project_second_round_live(
+            totalization=live_totalization,
+            sections_catalog=resolved_catalog,
+            state_totalizations=state_totalizations,
+            num_draws=num_draws,
+            seed=seed,
+            observed_at=election_day,
+        )
+
     publisher = AtomicPublisher()
     reconciler = ReconciliationEngine()
     model = HierarchicalBayesianModel()
@@ -475,7 +494,6 @@ def simulate_2026_second_round_checkpoint(
         progress_pct=progress_pct,
         by_electorate=by_electorate,
     )
-    election_day = observed_at or datetime(2026, 10, 25, 18, 0, tzinfo=UTC)
 
     return _run_wave_pipeline(
         sections_catalog=resolved_catalog,

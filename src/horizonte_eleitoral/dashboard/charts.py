@@ -363,7 +363,7 @@ def build_second_round_chart(
         )
     )
 
-    # Linha pontilhada de projecao final do modelo v2
+    # Linha pontilhada de projecao final do HORIZON-MRP
     df_proj = df_2t[df_2t["projecao"].notna()]
     line_proj = (
         alt.Chart(df_proj)
@@ -477,10 +477,10 @@ def build_second_round_error_chart(
     y_max: float | None = None,
     active_wave: float | None = None,
 ) -> alt.LayerChart | alt.Chart:
-    """Gera o gráfico comparativo de erro absoluto retroativo (Modelo V2 vs Urna Bruta TSE).
+    """Gera o gráfico comparativo de erro absoluto retroativo (HORIZON-MRP vs Urna Bruta TSE).
 
     Compara ao longo das ondas (>= 2% apurado) o erro absoluto em pontos percentuais (pp)
-    da contagem parcial bruta das urnas contra o erro da projeção bayesiana V2 em relação
+    da contagem parcial bruta das urnas contra o erro da projeção HORIZON-MRP em relação
     ao resultado oficial definitivo do 2º turno no TSE.
 
     Args:
@@ -522,7 +522,7 @@ def build_second_round_error_chart(
                 {
                     "x": x_val,
                     "t": t_val,
-                    "serie": "Projeção Bayesiana V2",
+                    "serie": "Projeção HORIZON-MRP",
                     "erro_pp": float(mod_mae),
                     "cobertura_ic": cov_str,
                 }
@@ -559,11 +559,11 @@ def build_second_round_error_chart(
         x_values = [0, 20, 40, 60, 80, 100]
 
     err_scale = alt.Scale(
-        domain=["Projeção Bayesiana V2", "Urna Bruta TSE (Sem Modelo)"],
+        domain=["Projeção HORIZON-MRP", "Urna Bruta TSE (Sem Modelo)"],
         range=["#0d9488", "#94a3b8"],
     )
     dash_scale = alt.Scale(
-        domain=["Projeção Bayesiana V2", "Urna Bruta TSE (Sem Modelo)"],
+        domain=["Projeção HORIZON-MRP", "Urna Bruta TSE (Sem Modelo)"],
         range=[[1, 0], [5, 4]],
     )
 
@@ -681,7 +681,7 @@ def build_second_round_error_chart(
         layers.extend([rule_active, text_active])
 
         df_active_point = df_err[
-            (df_err["serie"] == "Projeção Bayesiana V2")
+            (df_err["serie"] == "Projeção HORIZON-MRP")
             & (df_err["x"].round(1) == round(active_wave, 1))
         ]
         if not df_active_point.empty:

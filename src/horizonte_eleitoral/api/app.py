@@ -170,13 +170,14 @@ def create_app(publisher: AtomicPublisher | None = None) -> FastAPI:
     async def get_model_card() -> ModelCardResponse:
         """Exibe os metadados do modelo e seus limites estatisticos conhecidos."""
         return ModelCardResponse(
-            system_name="Sistema de Projecao Eleitoral 2026",
-            model_version="2026.2",
+            system_name="Horizonte Eleitoral 2026 · HORIZON-MRP",
+            model_version="HORIZON-MRP v2026.2",
             methodology=(
+                "HORIZON-MRP (Hierarchical Optimal Regression & Inferred Zonal Outcomes Network): "
                 "Modelo multinivel hierarquico bayesiano composicional em log-odds Versao 2 (v2) "
                 "com modulacao adaptativa por elasticidade municipal 2018-2022, amostragem "
-                "preditiva vetorizada de Monte Carlo (2000 draws) e calibracao Beta-Binomial. "
-                "Versao 1 arquivada como base de modelo legado."
+                "preditiva vetorizada de Monte Carlo (2000 draws) e calibracao exata "
+                "via Newton-Raphson. Versao 1 arquivada como base de modelo legado."
             ),
             target_error_margin=(
                 "Erro absoluto medio menor que 0.5 pp quando 10% do eleitorado estiver apurado."

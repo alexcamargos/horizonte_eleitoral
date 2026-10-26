@@ -23,6 +23,7 @@ from horizonte_eleitoral.dashboard.components import (
     render_candidate_cards,
     render_chart_guide,
     render_editorial_header,
+    render_general_model_documentation,
     render_history_table,
     render_model_card_expander,
     render_p2t_banner,
@@ -36,7 +37,8 @@ from horizonte_eleitoral.dashboard.components import (
 )
 from horizonte_eleitoral.dashboard.replay import (
     SECOND_ROUND_LIVE_MODEL_REV,
-    build_second_round_live_point,
+    build_live_point,
+    build_live_replay_point,
     build_second_round_replay_point,
     generate_replay_timeline,
     generate_second_round_state_projections,
@@ -207,7 +209,7 @@ def _render_first_round_tab() -> None:
 
 
 def _init_second_round_state() -> None:
-    """Inicializa as variaveis de estado de sessao necessarias para o 2º Turno."""
+    """Inicializa as variaveis de sessao necessarias para o monitoramento em tempo real."""
     if "second_round_points" not in st.session_state:
         st.session_state.second_round_points = []
 
@@ -252,27 +254,97 @@ def _execute_second_round_step(target_pct: float) -> dict[str, Any]:
     return point
 
 
-def _render_second_round_tab() -> None:
-    """Renderiza a aba de Tempo Real e Projecao para o 2º Turno Majoritario Oficial."""
+def _render_real_time_tab() -> None:
+    """Renderiza a aba de Tempo Real e Projecao para a disputa eleitoral oficial do TSE.
+
+    Permite selecionar o ano e o turno da eleicao acompanhada, filtrando e consultando
+    a API oficial do TSE em tempo real com calculo estocastico HORIZON-MRP.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
     _init_second_round_state()
 
-    if any(
-        p.get("is_live") and p.get("model_rev") != SECOND_ROUND_LIVE_MODEL_REV
-        for p in st.session_state.second_round_points
-    ):
-        with st.spinner("Recalculando histórico do 2º Turno com votos reais do TSE..."):
-            st.session_state.second_round_points = refresh_stale_second_round_points(
-                points=st.session_state.second_round_points,
-                catalog=get_replay_catalog(),
-            )
-
-    st.markdown("### Tempo Real Oficial TSE · 2º Turno Presidencial 2026")
+    st.markdown("### ⚡ Tempo Real Oficial TSE · Acompanhamento e Projeção")
     st.caption(
-        "Monitoramento contínuo da API oficial do TSE com checagens automáticas "
-        "e projeção bayesiana da disputa presidencial."
+        "Monitoramento contínuo da API oficial do TSE com checagens automáticas, "
+        "filtros por ano/turno da eleição e projeção do modelo HORIZON-MRP em tempo real."
     )
 
     settings = load_settings()
+
+    # 1. Filtros de Selecao da Eleicao em Tempo Real (Ano, Turno, Codigo e Endpoint)
+    st.markdown("#### 🎯 Filtros da Eleição Acompanhada")
+    col_ano, col_turno, col_cod, col_end = st.columns([1.1, 1.2, 1.3, 1.4])
+
+    with col_ano:
+        ano_sel = st.selectbox(
+            "Ano da Eleição:",
+            options=[2026, 2024, 2022],
+            index=0,
+            help="Ano do pleito eleitoral no TSE (padrão: 2026).",
+            key="realtime_selected_year",
+        )
+
+    with col_turno:
+        turno_sel = st.selectbox(
+            "Turno da Eleição:",
+            options=["2º Turno", "1º Turno"],
+            index=0,
+            help="Turno da eleição presidencial acompanhada.",
+            key="realtime_selected_round",
+        )
+
+    round_num = 2 if "2º" in turno_sel else 1
+
+    default_ids: dict[tuple[int, int], str] = {
+        (2026, 2): settings.tse_election_id_2t,
+        (2026, 1): "6257",
+        (2024, 2): "619",
+        (2024, 1): "618",
+        (2022, 2): "545",
+        (2022, 1): "544",
+    }
+    suggested_id = default_ids.get(
+        (ano_sel, round_num),
+        settings.tse_election_id_2t if round_num == 2 else "6257",
+    )
+
+    with col_cod:
+        election_id = st.text_input(
+            "Código da Eleição TSE:",
+            value=suggested_id,
+            help="Código oficial do pleito no TSE (ex: 6258 para 2T 2026, 6257 para 1T 2026).",
+            key=f"realtime_eid_{ano_sel}_{round_num}",
+        )
+
+    with col_end:
+        endpoint_type = st.selectbox(
+            "Tipo de Endpoint TSE:",
+            options=["divulgacao", "simplificada", "totalization"],
+            index=0,
+            help="divulgacao (u.json completo), simplificada (r.json) ou totalization (ea20).",
+            key="realtime_endpoint_type",
+        )
+
+    # Estado isolado para a combinacao ano/turno/codigo selecionada
+    state_key = f"live_pts_{ano_sel}_{round_num}_{election_id}"
+    if state_key not in st.session_state:
+        st.session_state[state_key] = list(
+            st.session_state.second_round_points if round_num == 2 and ano_sel == 2026 else []
+        )
+
+    active_points: list[dict[str, Any]] = st.session_state[state_key]
+
+    if round_num == 2 and ano_sel == 2026:
+        st.session_state.second_round_points = active_points
+
     ignore_gate = st.sidebar.checkbox(
         "Ignorar janela das 17h (Modo Teste / Demonstração)",
         value=True,
@@ -281,28 +353,46 @@ def _render_second_round_tab() -> None:
             "fora do horário de votação oficial."
         ),
     )
-    election_id = st.sidebar.text_input(
-        "Código da Eleição 2T TSE:",
-        value=settings.tse_election_id_2t,
-        help="Código oficial do pleito majoritário no TSE (padrão: 6258).",
-    )
-    endpoint_type = st.sidebar.selectbox(
-        "Tipo de Endpoint TSE:",
-        options=["divulgacao", "simplificada", "totalization"],
-        index=0,
-        help="divulgacao (u.json completo), simplificada (r.json) ou totalization (ea20).",
-    )
 
     is_window_active = is_election_night_window(ignore_gate=ignore_gate)
 
-    latest_pt = (
-        st.session_state.second_round_points[-1] if st.session_state.second_round_points else None
+    status_janela_str = "🟢 Aberta / Teste" if is_window_active else "⏳ Bloqueada"
+    st.markdown(
+        f"""
+        <div style="background: var(--bg-suave); border: 1px solid var(--borda-card); """
+        f"""border-radius: 8px; padding: 9px 14px; margin: 4px 0 16px 0; """
+        f"""font-size: 0.86rem; color: var(--texto-card);">
+            📡 <strong>Conexão TSE Ativa:</strong> Eleição {ano_sel} · {turno_sel} &nbsp;|&nbsp;
+            <strong>Código Oficial:</strong> <code>{election_id}</code> &nbsp;|&nbsp;
+            <strong>Endpoint:</strong> <code>{endpoint_type}</code> &nbsp;|&nbsp;
+            <strong>Status Janela 17h:</strong> {status_janela_str}
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    # 1. Caixa informativa com o status do monitoramento automatico
+    if any(
+        p.get("is_live") and p.get("model_rev") != SECOND_ROUND_LIVE_MODEL_REV
+        for p in active_points
+    ):
+        with st.spinner("Recalculando histórico com votos reais do TSE..."):
+            active_points = refresh_stale_second_round_points(
+                points=active_points,
+                catalog=get_replay_catalog(),
+            )
+            st.session_state[state_key] = active_points
+            if round_num == 2 and ano_sel == 2026:
+                st.session_state.second_round_points = active_points
+
+    latest_pt = active_points[-1] if active_points else None
+    current_pct = float(latest_pt.get("x", 0.0)) if latest_pt else 0.0
+    if round_num == 2 and ano_sel == 2026:
+        st.session_state.second_round_pct = current_pct
+
+    # 2. Caixa informativa com o status do monitoramento automatico
     render_polling_status_box(
         last_check_str=st.session_state.last_check_str,
-        current_pct=float(st.session_state.second_round_pct),
+        current_pct=current_pct,
         is_auto_active=is_window_active,
         is_window_open=is_window_active,
         status_message=st.session_state.last_status_msg,
@@ -315,7 +405,7 @@ def _render_second_round_tab() -> None:
         tse_timestamp_str=latest_pt.get("tse_time") if latest_pt else None,
     )
 
-    # 2. Painel de Controles e Botoes de Disparo
+    # 3. Painel de Controles e Botoes de Disparo
     st.markdown("#### Controle de Captura do TSE")
     col_btn, col_auto, col_int = st.columns([2, 1.5, 1.5])
 
@@ -364,6 +454,7 @@ def _render_second_round_tab() -> None:
         resolver = TSEPathResolver(
             base_url="https://resultados.tse.jus.br",
             election_id=election_id,
+            year=ano_sel,
         )
 
         async def _poll_tse() -> tuple[
@@ -379,7 +470,7 @@ def _render_second_round_tab() -> None:
                     client=tse_client,
                     resolver=resolver,
                     election_id=election_id,
-                    round_num=2,
+                    round_num=round_num,
                     ignore_schedule_gate=ignore_gate,
                     endpoint_type=endpoint_type,
                 )
@@ -389,11 +480,12 @@ def _render_second_round_tab() -> None:
                     tot_res is not None
                     and tot_res.valid_votes > 0
                     and (tot_res.totalized_electorate / max(1, tot_res.total_electorate)) >= 0.02
+                    and round_num == 2
                 ):
                     uf_tots_res = await poller.fetch_state_totalizations()
                 return has_new_res, tot_res, msg_res, uf_tots_res, poller.get_target_url()
 
-        target_url_logged = resolver.url_for_divulgacao(round_num=2)
+        target_url_logged = resolver.url_for_divulgacao(round_num=round_num)
         uf_tots: dict[str, NormalizedTotalization] = {}
         try:
             has_new, tot, status_msg, uf_tots, target_url_logged = asyncio.run(_poll_tse())
@@ -408,8 +500,9 @@ def _render_second_round_tab() -> None:
                 if (tot.totalized_electorate / max(1, tot.total_electorate)) >= 0.02
                 else None
             )
-            new_point = build_second_round_live_point(
+            new_point = build_live_point(
                 totalization=tot,
+                round_num=round_num,
                 time_str=local_time_str,
                 catalog=catalog,
                 state_totalizations=uf_tots or None,
@@ -417,20 +510,23 @@ def _render_second_round_tab() -> None:
             matched_idx = next(
                 (
                     idx
-                    for idx, p in enumerate(st.session_state.second_round_points)
+                    for idx, p in enumerate(active_points)
                     if abs(p["x"] - new_point["x"]) < 0.01
                     and p.get("apurado") == new_point["apurado"]
                 ),
                 None,
             )
             if matched_idx is None:
-                st.session_state.second_round_points.append(new_point)
-                st.session_state.second_round_points.sort(key=lambda p: float(p["x"]))
+                active_points.append(new_point)
+                active_points.sort(key=lambda p: float(p["x"]))
             else:
-                st.session_state.second_round_points[matched_idx] = new_point
+                active_points[matched_idx] = new_point
                 has_new = False
 
-            st.session_state.second_round_pct = float(new_point["x"])
+            st.session_state[state_key] = active_points
+            if round_num == 2 and ano_sel == 2026:
+                st.session_state.second_round_points = active_points
+                st.session_state.second_round_pct = float(new_point["x"])
 
             sec_pct_str = f"{new_point['x_sections']:.2f}%".replace(".", ",")
             elec_pct_str = f"{new_point['electorate_pct']:.2f}%".replace(".", ",")
@@ -473,22 +569,35 @@ def _render_second_round_tab() -> None:
                     }
                 )
                 return False, status_msg
-        elif sim_pct is not None and sim_pct > float(st.session_state.second_round_pct):
-            new_point = _execute_second_round_step(sim_pct)
-            st.session_state.last_status_msg = (
-                f"Passo simulado processado! Totalização em {new_point['x']:.2f}%."
+        elif sim_pct is not None and sim_pct > current_pct:
+            new_point = build_live_replay_point(
+                catalog=get_replay_catalog(),
+                wave=sim_pct / 100.0,
+                round_num=round_num,
             )
-            st.session_state.tse_log_entries.append(
-                {
-                    "Horário": check_time_str,
-                    "Status": 200,
-                    "Apurado (%)": f"{new_point['x']:.2f}%",
-                    "Dados Novos": "Sim",
-                    "Mensagem": "Passo simulado disparado pelo operador.",
-                    "URL": "simulacao://local",
-                }
-            )
-            return True, st.session_state.last_status_msg
+            if new_point:
+                active_points.append(new_point)
+                active_points.sort(key=lambda p: float(p.get("x", 0.0)))
+                st.session_state[state_key] = active_points
+                if round_num == 2 and ano_sel == 2026:
+                    st.session_state.second_round_points = active_points
+                    st.session_state.second_round_pct = float(new_point["x"])
+
+                st.session_state.last_status_msg = (
+                    f"Passo simulado processado! Totalização em {new_point['x']:.2f}%."
+                )
+                st.session_state.tse_log_entries.append(
+                    {
+                        "Horário": check_time_str,
+                        "Status": 200,
+                        "Apurado (%)": f"{new_point['x']:.2f}%",
+                        "Dados Novos": "Sim",
+                        "Mensagem": "Passo simulado disparado pelo operador.",
+                        "URL": "simulacao://local",
+                    }
+                )
+                return True, st.session_state.last_status_msg
+            return False, "Falha ao gerar passo simulado."
         else:
             st.session_state.last_status_msg = status_msg
             status_code = (
@@ -500,7 +609,7 @@ def _render_second_round_tab() -> None:
                 {
                     "Horário": check_time_str,
                     "Status": status_code,
-                    "Apurado (%)": f"{st.session_state.second_round_pct:.2f}%",
+                    "Apurado (%)": f"{current_pct:.2f}%",
                     "Dados Novos": "Não",
                     "Mensagem": status_msg,
                     "URL": target_url_logged,
@@ -509,8 +618,9 @@ def _render_second_round_tab() -> None:
             return False, status_msg
 
     # Sincronizacao automatica inicial ao abrir a aba
-    if not st.session_state.second_round_points and "tse_initial_sync_done" not in st.session_state:
-        st.session_state.tse_initial_sync_done = True
+    initial_sync_key = f"tse_initial_sync_done_{ano_sel}_{round_num}_{election_id}"
+    if not active_points and initial_sync_key not in st.session_state:
+        st.session_state[initial_sync_key] = True
         _poll_and_update()
 
     # Execucao do disparo manual
@@ -523,23 +633,13 @@ def _render_second_round_tab() -> None:
                 st.info(f"ℹ️ {msg}")
 
     if btn_sim:
-        new_point = _execute_second_round_step(sim_step)
-        st.session_state.last_status_msg = (
-            f"Passo simulado processado! Totalização em {new_point['x']:.2f}%."
-        )
-        st.session_state.tse_log_entries.append(
-            {
-                "Horário": datetime.now(UTC).strftime("%H:%M:%S UTC"),
-                "Status": 200,
-                "Apurado (%)": f"{new_point['x']:.2f}%",
-                "Dados Novos": "Sim",
-                "Mensagem": "Passo simulado disparado pelo operador.",
-                "URL": "simulacao://local",
-            }
-        )
-        st.success(f"✅ {st.session_state.last_status_msg}")
+        has_sim, sim_msg = _poll_and_update(sim_pct=sim_step)
+        if has_sim:
+            st.success(f"✅ {sim_msg}")
+        else:
+            st.info(f"ℹ️ {sim_msg}")
 
-    # 3. Fragmento de verificacao automatica periodica (Auto-Pull)
+    # 4. Fragmento de verificacao automatica periodica (Auto-Pull)
     @st.fragment(run_every=poll_interval if auto_poll else None)
     def _auto_polling_fragment() -> None:
         """Fragmento interno que executa polling em segundo plano no intervalo selecionado."""
@@ -561,27 +661,58 @@ def _render_second_round_tab() -> None:
 
     _auto_polling_fragment()
 
-    # 4. Cartoes de Candidatos do 2º Turno (Lula vs Flávio Bolsonaro)
+    # 5. Cartoes de Candidatos e Grafico de Projecao adaptados ao Turno
     st.markdown("---")
-    latest_2t_point = (
-        st.session_state.second_round_points[-1] if st.session_state.second_round_points else None
-    )
+    latest_live_point = active_points[-1] if active_points else None
 
-    render_second_round_candidate_cards(latest_point=latest_2t_point)
+    if round_num == 2:
+        render_second_round_candidate_cards(latest_point=latest_live_point)
 
-    # 5. Grafico de Projecao do 2º Turno em Altair
-    st.markdown("#### Evolução da Apuração e Projeção · 2º Turno")
-    render_chart_guide(round_num=2)
-    chart_2t = build_second_round_chart(points=st.session_state.second_round_points)
-    st.altair_chart(chart_2t, use_container_width=True, theme="streamlit")
+        st.markdown("#### Evolução da Apuração e Projeção · 2º Turno")
+        render_chart_guide(round_num=2)
+        chart_2t = build_second_round_chart(points=active_points)
+        st.altair_chart(chart_2t, use_container_width=True, theme="streamlit")
 
-    # 6. Tabela Historica das Ondas do 2º Turno
-    with st.expander("📊 Ver histórico de ondas da apuração do 2º Turno"):
-        render_second_round_history_table(points=st.session_state.second_round_points)
+        with st.expander("📊 Ver histórico de ondas da apuração do 2º Turno"):
+            render_second_round_history_table(points=active_points)
+    else:
+        render_candidate_cards(latest_point=latest_live_point)
 
-    # 7. Log de Requisicoes a API Oficial do TSE
+        prob_2t = latest_live_point.get("p_2turno") if latest_live_point else None
+        render_p2t_banner(prob_2t=prob_2t)
+
+        st.markdown("#### Evolução da Apuração e Projeção · 1º Turno")
+        render_chart_guide(round_num=1)
+        chart_1t = build_projection_chart(points=active_points)
+        st.altair_chart(chart_1t, use_container_width=True)
+
+        with st.expander("📊 Ver histórico de ondas da apuração do 1º Turno"):
+            render_history_table(points=active_points)
+
+    # 6. Log de Requisicoes a API Oficial do TSE
     with st.expander("🌐 Log detalhado de requisições à API Oficial do TSE"):
         render_polling_log_table(st.session_state.tse_log_entries)
+
+    # 7. Model Card
+    render_model_card_expander(
+        {
+            "model_version": (
+                "HORIZON-MRP v2026.2 "
+                "(Hierarchical Optimal Regression & Inferred Zonal Outcomes Network)"
+            ),
+            "target_error_margin": (
+                "≤ 0.50 pp a partir de 2,0% do eleitorado apurado (tempo real oficial)"
+            ),
+            "disclaimer": (
+                f"Monitoramento ao vivo conectado à CDN do TSE para o pleito {ano_sel} · "
+                f"{turno_sel} (código {election_id}). Projeções bayesianas condicionadas."
+            ),
+        }
+    )
+
+
+# Alias de retrocompatibilidade para suites de teste legadas
+_render_second_round_tab = _render_real_time_tab
 
 
 def _render_second_round_validation_tab() -> None:
@@ -794,23 +925,37 @@ def render_dashboard() -> None:
         """,
         unsafe_allow_html=True,
     )
+    st.sidebar.markdown(
+        """
+        ---
+        **Sobre o Projeto:**
+        O **Horizonte Eleitoral** prevê o resultado das eleições presidenciais
+        corrigindo vieses geográficos de transmissão das urnas via Regressão
+        Multinível, Pós-Estratificação (MRP) e swing calibrado por Newton-Raphson.
 
-    tab_2t_val, tab_1t, tab_2t_live = st.tabs(
+        Consulte o expander no topo da página para a **Documentação Geral** completa.
+        """
+    )
+
+    # Documentacao Geral do Modelo em Destaque para Visitantes Atentos
+    render_general_model_documentation()
+
+    tab_live, tab_1t_val, tab_2t_val = st.tabs(
         [
-            "🏆 Histórico e Validação · 2º Turno 2026",
-            "📊 Histórico do 1º Turno (Validação e Replay)",
-            "⚡ Tempo Real · 2º Turno (API Oficial TSE)",
+            "⚡ Tempo Real (API Oficial do TSE)",
+            "📊 Análise Histórica · 1º Turno (2026)",
+            "🏆 Análise Histórica · 2º Turno (2026)",
         ]
     )
 
-    with tab_2t_val:
-        _render_second_round_validation_tab()
+    with tab_live:
+        _render_real_time_tab()
 
-    with tab_1t:
+    with tab_1t_val:
         _render_first_round_tab()
 
-    with tab_2t_live:
-        _render_second_round_tab()
+    with tab_2t_val:
+        _render_second_round_validation_tab()
 
 
 if __name__ == "__main__":

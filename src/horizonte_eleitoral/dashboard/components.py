@@ -620,11 +620,13 @@ def render_model_card_expander(card_info: dict[str, Any] | None) -> None:
                     </div>
                 </div>
                 <div class="model-card-box">
-                    <div class="model-card-box-titulo">🧮 Modelo Bayesiano V2 com Elasticidade</div>
+                    <div class="model-card-box-titulo">🧮 HORIZON-MRP com Elasticidade</div>
                     <div class="model-card-box-desc">
-                        A Versão 2 modula o encolhimento bayesiano (shrinkage) de cada município
-                        com base na sua volatilidade histórica entre as eleições de 2018 e 2022.
-                        Municípios mais elásticos absorvem os dados da urna de 2026 mais rápido.
+                        O <strong>HORIZON-MRP</strong>
+                        (Hierarchical Optimal Regression & Inferred Zonal Outcomes Network)
+                        modula o encolhimento bayesiano (shrinkage) de cada município com base
+                        na sua volatilidade histórica entre 2018 e 2022. Municípios mais elásticos
+                        absorvem os dados da urna de 2026 mais rápido.
                     </div>
                 </div>
                 <div class="model-card-box">
@@ -632,7 +634,7 @@ def render_model_card_expander(card_info: dict[str, Any] | None) -> None:
                     <div class="model-card-box-desc">
                         O Modelo Versão 1 (apenas 2022/2026 com encolhimento fixo) foi arquivado
                         e documentado como baseline legado. O dashboard conecta-se exclusivamente
-                        à Versão 2 após vitória no benchmark de 100% da base.
+                        ao HORIZON-MRP após vitória no benchmark de 100% da base.
                     </div>
                 </div>
             </div>
@@ -643,7 +645,7 @@ def render_model_card_expander(card_info: dict[str, Any] | None) -> None:
             st.markdown("---")
             col_v, col_m = st.columns(2)
             with col_v:
-                mod_ver = card_info.get("model_version", "2026.2 (V2)")
+                mod_ver = card_info.get("model_version", "HORIZON-MRP v2026.2")
                 st.markdown(f"**Versão do Modelo:** `{mod_ver}`")
             with col_m:
                 meta_err = card_info.get("target_error_margin", "0.5 pp")
@@ -693,9 +695,9 @@ def build_chart_guide_html(round_num: int = 1) -> str:
         <div class="grafico-descricao">
             <strong>Como interpretar:</strong> O gráfico apresenta a convergência entre os
             <strong>votos apurados</strong> divulgados pelo TSE e a <strong>projeção final</strong>
-            estimada pelo modelo bayesiano multinível. À medida que mais seções são totalizadas
-            (eixo horizontal), o modelo corrige vieses regionais e a margem de incerteza estatística
-            (faixa sombreada) se estreita em direção ao resultado definitivo.
+            estimada pelo modelo HORIZON-MRP (Bayesiano Multinível). À medida que mais seções
+            são totalizadas (eixo horizontal), o modelo corrige vieses regionais e a margem de
+            incerteza estatística (faixa sombreada) se estreita em direção ao resultado definitivo.
         </div>
         <div class="grafico-legenda-grid">
             <div class="grafico-legenda-bloco">
@@ -1080,7 +1082,7 @@ def render_second_round_validation_panel(
     latest_point: dict[str, Any] | None,
     validation_summary: dict[str, Any],
 ) -> None:
-    """Renderiza o painel de KPIs de auditoria retroativa do Modelo V2 frente ao resultado TSE.
+    """Renderiza o painel de KPIs de auditoria retroativa do HORIZON-MRP frente ao resultado TSE.
 
     Args:
         latest_point: Ponto avaliado no marco percentual selecionado pelo usuario.
@@ -1110,7 +1112,7 @@ def render_second_round_validation_panel(
         raw_str = f"{float(raw_mae):.2f} pp".replace(".", ",")
         if mae_gain is not None and float(mae_gain) > 0.0:
             gain_s = f"{float(mae_gain):.2f} pp".replace(".", ",")
-            sub_mae = f"Urna bruta: {raw_str} · Modelo reduziu {gain_s} de viés"
+            sub_mae = f"Urna bruta: {raw_str} · HORIZON-MRP reduziu {gain_s} de viés"
         else:
             sub_mae = f"Erro da urna bruta neste marco: {raw_str}"
     else:
@@ -1242,7 +1244,7 @@ def render_second_round_history_table(points: list[dict[str, Any]]) -> None:
             row["Erro Urna (pp)"] = (
                 f"{float(raw_mae):.2f}".replace(".", ",") if raw_mae is not None else "–"
             )
-            row["Erro Modelo V2 (pp)"] = (
+            row["Erro HORIZON-MRP (pp)"] = (
                 f"{float(mod_mae):.2f}".replace(".", ",")
                 if has_proj and mod_mae is not None
                 else "–"
@@ -1274,7 +1276,7 @@ def render_second_round_state_table(states_data: list[dict[str, Any]]) -> None:
         """
         <p style="font-size: 0.88rem; color: var(--texto-mut); margin-bottom: 8px;">
             Comparação em cada estado (UF + Exterior ZZ) entre os votos parciais na urna no marco
-            selecionado, a projeção estadual do Modelo V2 e o resultado final homologado no TSE.
+            selecionado, a projeção estadual do HORIZON-MRP e o resultado final homologado no TSE.
         </p>
         """,
         unsafe_allow_html=True,
@@ -1287,7 +1289,7 @@ def render_second_round_state_table(states_data: list[dict[str, Any]]) -> None:
             options=[
                 "Maior Colégio Eleitoral (SP, MG, RJ, BA...)",
                 "Mais Apurados Primeiro (% Apurado)",
-                "Menor Erro do Modelo V2 (pp)",
+                "Menor Erro do HORIZON-MRP (pp)",
                 "Ordem Alfabética (UF)",
             ],
             index=0,
@@ -1328,10 +1330,10 @@ def render_second_round_state_table(states_data: list[dict[str, Any]]) -> None:
                 "Peso Brasil": peso_str,
                 "% Apurado": x_str,
                 "Lula (PT) Urna Parcial": fmt_pct(obs_pt, 2) if obs_pt is not None else "–",
-                "Lula (PT) Projeção V2": fmt_pct(proj_pt, 2),
+                "Lula (PT) Projeção HORIZON-MRP": fmt_pct(proj_pt, 2),
                 "Lula (PT) Final TSE 2T": fmt_pct(final_pt, 2),
                 "1º Turno Bilateral (PT)": fmt_pct(prior_1t, 2),
-                "Erro Modelo (pp)": f"{err_pp:.2f} pp".replace(".", ","),
+                "Erro HORIZON-MRP (pp)": f"{err_pp:.2f} pp".replace(".", ","),
                 "Vencedor UF": lider_final,
             }
         )

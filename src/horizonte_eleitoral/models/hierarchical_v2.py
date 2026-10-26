@@ -1,5 +1,6 @@
-"""Modelo hierarquico multinivel Versao 2 (v2) - MODELO PADRAO DO PROJETO.
+"""Modelo hierarquico multinivel Versao 2 (HORIZON-MRP) - MODELO PADRAO DO PROJETO.
 
+HORIZON-MRP (Hierarchical Optimal Regression & Inferred Zonal Outcomes Network).
 Incorpora o indice de elasticidade historica municipal (eleicoes 2018-2022)
 para modular o encolhimento bayesiano (shrinkage) municipal em relacao ao estadual.
 Consolidado como modelo preditivo ativo padrao apos validacao em 100% da base de 2026.
@@ -387,11 +388,15 @@ class HierarchicalBayesianModelV2(ForecastModel):
         )
 
 
-# A Versao 2 e o modelo padrao ativo do sistema
+# A Versao 2 (HORIZON-MRP) e o modelo padrao ativo do sistema
 HierarchicalBayesianModel = HierarchicalBayesianModelV2
+HorizonMRP = HierarchicalBayesianModelV2
+HorizonMRPModel = HierarchicalBayesianModelV2
 
 __all__ = [
     "HierarchicalBayesianModel",
     "HierarchicalBayesianModelV2",
+    "HorizonMRP",
+    "HorizonMRPModel",
     "get_default_elasticity_index",
 ]

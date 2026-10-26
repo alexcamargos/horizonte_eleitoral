@@ -32,8 +32,8 @@ Este documento constitui a **Constituição Técnica** do projeto **Horizonte El
      2. *Aba 2 (1º Turno · Replay e Validação):* Carrega o catálogo analítico `catalog_2026.parquet` em cache (`@st.cache_resource`) e prioriza marcos pré-computados (`data/real/checkpoints_2026.json`) para evitar recálculo pesado durante a navegação;
      3. *Aba 3 (2º Turno · Tempo Real TSE):* Realiza checagens controladas via `TSELivePoller` e `TSEAsyncClient`, respeitando *allowlist* HTTPS, *rate limit* Token Bucket (`AsyncRateLimiter`), cabeçalhos condicionais (`If-None-Match` / `If-Modified-Since` com suporte a `HTTP 304`) e a janela oficial de domingo após as 17h BRT (`is_election_night_window`).
 
-6. **Modelo Preditivo Padrão (V2) e Performance Colunar (Parquet / DuckDB):**
-   - O modelo ativo padrão do projeto é o `HierarchicalBayesianModelV2` (alias `HierarchicalBayesianModel` em `horizonte_eleitoral.models`), que modula o encolhimento (*shrinkage*) municipal pelo `MunicipalElasticityIndex` (2018–2022, salvo em `data/real/elasticity_2018_2022.parquet`). O `HierarchicalBayesianModelV1` permanece arquivado apenas para auditoria e comparação histórica (`--compare-v1-v2`).
+6. **Modelo Preditivo Padrão (HORIZON-MRP) e Performance Colunar (Parquet / DuckDB):**
+   - O modelo ativo padrão do projeto é o **HORIZON-MRP** (*Hierarchical Optimal Regression & Inferred Zonal Outcomes Network*), implementado na classe `HierarchicalBayesianModelV2` (aliases `HorizonMRP`, `HorizonMRPModel` e `HierarchicalBayesianModel` em `horizonte_eleitoral.models`), que modula o encolhimento (*shrinkage*) municipal pelo `MunicipalElasticityIndex` (2018–2022, salvo em `data/real/elasticity_2018_2022.parquet`). O `HierarchicalBayesianModelV1` permanece arquivado apenas para auditoria e comparação histórica (`--compare-v1-v2`).
    - O processamento da base real (499.206 seções) deve utilizar armazenamento colunar **Apache Parquet** (`pyarrow`) e consultas analíticas em memória via **DuckDB** (`RealDataLoader`). É proibido reintroduzir leitura iterativa lenta de CSVs brutos no caminho crítico do dashboard ou das simulações padrão.
 
 7. **Um Fato, Um Dono Canônico (*Living Docs*):**
@@ -49,7 +49,7 @@ Este documento constitui a **Constituição Técnica** do projeto **Horizonte El
 | **Visão Geral & CLI** | [`README.md`](README.md) | Guia de início rápido, instalação com `uv` e catálogo de comandos operacionais da CLI. |
 | **Portal Docs** | [`docs/README.md`](docs/README.md) | Índice navegável da documentação técnica e roteiros de leitura por perfil. |
 | **Mapa** | [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md) | O que existe, onde mora cada pacote em `src/horizonte_eleitoral/`, fronteiras e *jump table*. |
-| **Metodologia** | [`docs/METODOLOGIA_ESTATISTICA.md`](docs/METODOLOGIA_ESTATISTICA.md) | Formulação matemática, 4 baselines, modelo hierárquico V2 com elasticidade e simulação Monte Carlo. |
+| **Metodologia** | [`docs/METODOLOGIA_ESTATISTICA.md`](docs/METODOLOGIA_ESTATISTICA.md) | Formulação matemática, 4 baselines, modelo HORIZON-MRP com elasticidade e simulação Monte Carlo. |
 | **Histórico / ADRs** | [`docs/DECISOES_DE_ENGENHARIA.md`](docs/DECISOES_DE_ENGENHARIA.md) | Decisões duráveis de arquitetura (ADR 001 a ADR 007), justificativas lógicas e *trade-offs*. |
 | **Status & Delete-Zone** | [`docs/STATUS_E_GOVERNANCA.md`](docs/STATUS_E_GOVERNANCA.md) | Saúde atual da suíte (183 testes), *Delete-Zone*, padrões de contribuição e roadmap. |
 | **Migrações SQL** | [`migrations/README.md`](migrations/README.md) | Regras *append-only* para evolução do schema relacional de auditoria (`migrations/001_foundation.sql`). |

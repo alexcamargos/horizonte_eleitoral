@@ -135,6 +135,7 @@ def build_projection_chart(
                 grid=True,
                 values=[0, 20, 40, 60, 80, 100],
                 format=".0f",
+                titlePadding=12,
             ),
         ),
     )
@@ -281,7 +282,7 @@ def build_second_round_chart(
     points: list[dict[str, Any]],
     height: int = 380,
     final_result: dict[str, float] | None = None,
-) -> alt.Chart:
+) -> alt.LayerChart | alt.Chart:
     """Gera o grafico visual em Altair para o 2º Turno Majoritario (PT vs PL).
 
     Painel unificado de disputa majoritaria com linha de maioria absoluta (50%),
@@ -344,6 +345,7 @@ def build_second_round_chart(
                 grid=True,
                 values=[0, 20, 40, 60, 80, 100],
                 format=".0f",
+                titlePadding=12,
             ),
         ),
     )
@@ -466,25 +468,31 @@ def build_second_round_chart(
         ),
     )
 
-    return cast(alt.Chart, chart)
+    return cast(alt.LayerChart | alt.Chart, chart)
 
 
 def build_second_round_error_chart(
     points: list[dict[str, Any]],
-    height: int = 230,
-) -> alt.Chart:
-    """Gera o grafico comparativo de erro absoluto retroativo (Modelo V2 vs Urna Bruta TSE).
+    height: int = 300,
+    y_max: float | None = None,
+    active_wave: float | None = None,
+) -> alt.LayerChart | alt.Chart:
+    """Gera o gráfico comparativo de erro absoluto retroativo (Modelo V2 vs Urna Bruta TSE).
 
     Compara ao longo das ondas (>= 2% apurado) o erro absoluto em pontos percentuais (pp)
-    da contagem parcial bruta das urnas contra o erro da projecao bayesiana V2 em relacao
+    da contagem parcial bruta das urnas contra o erro da projeção bayesiana V2 em relação
     ao resultado oficial definitivo do 2º turno no TSE.
 
     Args:
-        points: Lista cronologica de pontos contendo o bloco ``metrics``.
-        height: Altura em pixels do grafico.
+        points: Lista cronológica de pontos contendo o bloco ``metrics``.
+        height: Altura em pixels do gráfico (padrão: 300).
+        y_max: Teto vertical opcional da escala em pp. Se None, utiliza foco inteligente
+            (4.0 pp se houver viés inicial desproporcional, preservando legibilidade).
+        active_wave: Percentual apurado da onda ativa (ex.: 10.0) para inclusão de marcador
+            vertical de auditoria e destaque do ponto avaliado.
 
     Returns:
-        Instancia de alt.Chart com as curvas de erro absoluto e meta de 0,50 pp.
+        Instância de alt.Chart com curvas de erro absoluto, meta histórica e destaque da onda.
 
     Raises:
         None.
@@ -504,7 +512,7 @@ def build_second_round_error_chart(
                 {
                     "x": x_val,
                     "t": t_val,
-                    "serie": "Urna Bruta TSE (sem modelo)",
+                    "serie": "Urna Bruta TSE (Sem Modelo)",
                     "erro_pp": float(raw_mae),
                     "cobertura_ic": cov_str,
                 }
@@ -529,30 +537,33 @@ def build_second_round_error_chart(
                 x=alt.X("x:Q", title="% do eleitorado apurado", scale=alt.Scale(domain=[0, 100])),
                 y=alt.Y("y:Q", title="Erro absoluto (pp)", scale=alt.Scale(domain=[0, 2.0])),
             )
-            .properties(
-                title=alt.TitleParams(
-                    text="Auditoria Retroativa de Erro Absoluto (aguardando ≥ 2,0% apurado)",
-                    subtitle=(
-                        "O comparativo de precisão do modelo é liberado a partir do "
-                        "limiar estatístico de 2,0% do eleitorado apurado."
-                    ),
-                    subtitleColor="#64748b",
-                    subtitleFontSize=11,
-                ),
-                height=height,
-            )
+            .properties(height=height)
         )
         return cast(alt.Chart, empty_chart)
 
     df_err = pd.DataFrame(rows)
-    max_err = max(1.0, float(df_err["erro_pp"].max()) * 1.18)
+    max_err = max(1.0, float(df_err["erro_pp"].max()))
+
+    effective_y_max = y_max if y_max is not None else (4.0 if max_err > 4.0 else max_err * 1.15)
+    effective_y_max = max(1.0, round(effective_y_max, 2))
+
+    df_err["erro_real_pp"] = df_err["erro_pp"]
+    df_err["erro_plot_pp"] = df_err["erro_pp"].clip(upper=effective_y_max)
+
+    max_x = float(df_err["x"].max())
+    if max_x <= 15.0:
+        x_domain = [0.0, max(12.0, max_x + 2.0)]
+        x_values = [0, 2, 5, 10, 12] if max_x <= 10.0 else [0, 5, 10, 15]
+    else:
+        x_domain = [0.0, 100.0]
+        x_values = [0, 20, 40, 60, 80, 100]
 
     err_scale = alt.Scale(
-        domain=["Projeção Bayesiana V2", "Urna Bruta TSE (sem modelo)"],
-        range=["#0f766e", "#94a3b8"],
+        domain=["Projeção Bayesiana V2", "Urna Bruta TSE (Sem Modelo)"],
+        range=["#0d9488", "#94a3b8"],
     )
     dash_scale = alt.Scale(
-        domain=["Projeção Bayesiana V2", "Urna Bruta TSE (sem modelo)"],
+        domain=["Projeção Bayesiana V2", "Urna Bruta TSE (Sem Modelo)"],
         range=[[1, 0], [5, 4]],
     )
 
@@ -563,26 +574,34 @@ def build_second_round_error_chart(
             x=alt.X(
                 "x:Q",
                 title="% do eleitorado nas seções totalizadas pelo TSE",
-                scale=alt.Scale(domain=[0, 100]),
-                axis=alt.Axis(values=[0, 20, 40, 60, 80, 100], format=".0f", grid=True),
+                scale=alt.Scale(domain=x_domain),
+                axis=alt.Axis(values=x_values, format=".0f", grid=True, titlePadding=10),
             ),
             y=alt.Y(
-                "erro_pp:Q",
+                "erro_plot_pp:Q",
                 title="Erro absoluto vs Final TSE (pp)",
-                scale=alt.Scale(domain=[0, round(max_err, 2)], clamp=True),
-                axis=alt.Axis(format=".2f", tickCount=5),
+                scale=alt.Scale(domain=[0, effective_y_max], clamp=True),
+                axis=alt.Axis(format=".2f", tickCount=5, titlePadding=10),
             ),
             color=alt.Color(
                 "serie:N",
                 scale=err_scale,
-                legend=alt.Legend(title=None, orient="top"),
+                legend=alt.Legend(
+                    title=None,
+                    orient="top",
+                    labelLimit=0,
+                    labelFontSize=12,
+                    symbolSize=100,
+                    symbolStrokeWidth=2.5,
+                    padding=8,
+                ),
             ),
             strokeDash=alt.StrokeDash("serie:N", scale=dash_scale, legend=None),
             tooltip=[
                 alt.Tooltip("t:N", title="Horário"),
                 alt.Tooltip("x:Q", title="% Eleitorado Apurado", format=".1f"),
                 alt.Tooltip("serie:N", title="Série Avaliada"),
-                alt.Tooltip("erro_pp:Q", title="Erro Absoluto (pp)", format=".2f"),
+                alt.Tooltip("erro_real_pp:Q", title="Erro Real vs Final TSE (pp)", format=".2f"),
                 alt.Tooltip("cobertura_ic:N", title="Dentro do IC 90%?"),
             ],
         )
@@ -590,25 +609,105 @@ def build_second_round_error_chart(
 
     rule_target = (
         alt.Chart(pd.DataFrame({"y": [0.50]}))
-        .mark_rule(color="#d97706", strokeDash=[3, 3], strokeWidth=1.2)
+        .mark_rule(color="#d97706", strokeDash=[3, 3], strokeWidth=1.4)
         .encode(y="y:Q")
     )
+    target_label_x = min(96.0, max(10.0, max_x - 1.0))
     text_target = (
-        alt.Chart(pd.DataFrame({"x": [98.5], "y": [0.56], "text": ["Meta histórica: 0,50 pp"]}))
-        .mark_text(align="right", fontSize=10, color="#b45309")
+        alt.Chart(
+            pd.DataFrame(
+                {
+                    "x": [target_label_x],
+                    "y": [0.58],
+                    "text": ["Meta histórica: 0,50 pp"],
+                }
+            )
+        )
+        .mark_text(align="right", fontSize=11, fontWeight="bold", color="#d97706")
         .encode(x="x:Q", y="y:Q", text="text:N")
     )
 
-    composed = alt.layer(lines, rule_target, text_target).properties(
-        height=height,
-        title=alt.TitleParams(
-            text="Qualidade Retroativa do Modelo: Erro Absoluto ao Longo da Apuração (pp)",
-            subtitle=(
-                "Distância em pontos percentuais para o resultado oficial final do TSE "
-                "(quanto menor, mais preciso)"
-            ),
-            subtitleColor="#94a3b8",
-            subtitleFontSize=11,
-        ),
-    )
-    return cast(alt.Chart, composed)
+    layers: list[alt.Chart] = [lines, rule_target, text_target]
+
+    # Indicador de pontos excedentes limitados na escala (ex.: urna bruta a 2% e 5%)
+    df_clamped = df_err[df_err["erro_real_pp"] > effective_y_max].copy()
+    if not df_clamped.empty:
+        df_clamped["label_clamped"] = df_clamped["erro_real_pp"].apply(
+            lambda v: f"↑ {v:.1f} pp".replace(".", ",")
+        )
+        text_clamped = (
+            alt.Chart(df_clamped)
+            .mark_text(
+                align="center",
+                dy=-10,
+                fontSize=10,
+                fontWeight="bold",
+                color="#64748b",
+            )
+            .encode(
+                x="x:Q",
+                y="erro_plot_pp:Q",
+                text="label_clamped:N",
+            )
+        )
+        layers.append(text_clamped)
+
+    # Marcador da onda ativa avaliada
+    if active_wave is not None and active_wave >= 2.0:
+        rule_active = (
+            alt.Chart(pd.DataFrame({"x": [active_wave]}))
+            .mark_rule(color="#0d9488", strokeDash=[2, 2], strokeWidth=1.5, opacity=0.75)
+            .encode(x="x:Q")
+        )
+        text_active = (
+            alt.Chart(
+                pd.DataFrame(
+                    {
+                        "x": [active_wave],
+                        "y": [effective_y_max * 0.92],
+                        "text": [f"Marco atual: {active_wave:.1f}%".replace(".", ",")],
+                    }
+                )
+            )
+            .mark_text(
+                align="left" if active_wave <= 75.0 else "right",
+                dx=6 if active_wave <= 75.0 else -6,
+                fontSize=11,
+                fontWeight="bold",
+                color="#0d9488",
+            )
+            .encode(x="x:Q", y="y:Q", text="text:N")
+        )
+        layers.extend([rule_active, text_active])
+
+        df_active_point = df_err[
+            (df_err["serie"] == "Projeção Bayesiana V2")
+            & (df_err["x"].round(1) == round(active_wave, 1))
+        ]
+        if not df_active_point.empty:
+            circle_active = (
+                alt.Chart(df_active_point)
+                .mark_circle(size=130, color="#0d9488", stroke="#ffffff", strokeWidth=2)
+                .encode(x="x:Q", y="erro_plot_pp:Q")
+            )
+            err_val = float(df_active_point["erro_real_pp"].iloc[0])
+            lbl_active_val = (
+                alt.Chart(df_active_point)
+                .mark_text(
+                    align="left" if active_wave <= 80.0 else "right",
+                    dx=10 if active_wave <= 80.0 else -10,
+                    dy=-8,
+                    fontSize=11,
+                    fontWeight="bold",
+                    color="#0d9488",
+                )
+                .encode(
+                    x="x:Q",
+                    y="erro_plot_pp:Q",
+                    text=alt.value(f"Erro: {err_val:.2f} pp".replace(".", ",")),
+                )
+            )
+            layers.extend([circle_active, lbl_active_val])
+
+    composed = alt.layer(*layers).properties(height=height)
+    return cast(alt.LayerChart | alt.Chart, composed)

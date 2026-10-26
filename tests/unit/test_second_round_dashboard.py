@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import altair as alt
 
-from horizonte_eleitoral.dashboard.charts import build_second_round_chart
+from horizonte_eleitoral.dashboard.charts import (
+    build_second_round_chart,
+    build_second_round_error_chart,
+)
 from horizonte_eleitoral.dashboard.components import (
     render_polling_log_table,
     render_polling_status_box,
@@ -47,6 +50,71 @@ def test_build_second_round_chart_empty_and_populated() -> None:
 
     chart_pop = build_second_round_chart(points=sample_points)
     assert chart_pop is not None
+
+
+def test_build_second_round_error_chart_empty_and_populated() -> None:
+    """Valida geracao do grafico Altair de erro absoluto vazio, com foco e onda ativa.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+
+    Raises:
+        AssertionError: Caso o grafico retornado nao seja uma instancia valida de alt.Chart.
+    """
+    chart_empty = build_second_round_error_chart(points=[])
+    assert chart_empty is not None
+    assert isinstance(chart_empty, alt.Chart)
+
+    sample_metrics_points = [
+        {
+            "t": "17:04",
+            "x": 2.0,
+            "metrics": {
+                "raw_mae_pp": 17.21,
+                "model_mae_pp": 0.85,
+                "ci_90_covered": False,
+            },
+        },
+        {
+            "t": "17:15",
+            "x": 5.0,
+            "metrics": {
+                "raw_mae_pp": 7.13,
+                "model_mae_pp": 0.09,
+                "ci_90_covered": True,
+            },
+        },
+        {
+            "t": "17:34",
+            "x": 10.0,
+            "metrics": {
+                "raw_mae_pp": 0.88,
+                "model_mae_pp": 0.06,
+                "ci_90_covered": True,
+            },
+        },
+    ]
+
+    # Teste com foco de precisao (y_max=4.0) e marcador de onda ativa (10.0%)
+    chart_focused = build_second_round_error_chart(
+        points=sample_metrics_points,
+        height=320,
+        y_max=4.0,
+        active_wave=10.0,
+    )
+    assert chart_focused is not None
+    assert isinstance(chart_focused, (alt.Chart, alt.LayerChart))
+
+    # Teste com escala ampla automatica
+    chart_wide = build_second_round_error_chart(
+        points=sample_metrics_points,
+        y_max=20.0,
+    )
+    assert chart_wide is not None
+    assert isinstance(chart_wide, (alt.Chart, alt.LayerChart))
 
 
 def test_build_second_round_replay_point_and_timeline() -> None:

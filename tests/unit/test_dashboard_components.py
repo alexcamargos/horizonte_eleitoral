@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pytest_mock import MockerFixture
+
 from horizonte_eleitoral.dashboard.components import (
     build_chart_guide_html,
     format_staleness_badge,
@@ -93,3 +95,22 @@ def test_get_custom_css_contains_design_tokens() -> None:
     assert "sidebar-model-badge" in css
     assert "chance-vitoria-box" in css
     assert "status-box-container" in css
+
+
+def test_render_general_model_documentation(mocker: MockerFixture) -> None:
+    """Valida renderizacao do expander de documentacao geral do modelo sem erros."""
+    import streamlit as st
+
+    from horizonte_eleitoral.dashboard.components import render_general_model_documentation
+
+    mock_expander = mocker.patch.object(st, "expander")
+    mock_markdown = mocker.patch.object(st, "markdown")
+    mock_columns = mocker.patch.object(
+        st, "columns", return_value=[mocker.MagicMock(), mocker.MagicMock()]
+    )
+
+    render_general_model_documentation()
+
+    assert mock_expander.called
+    assert mock_markdown.called
+    assert mock_columns.called

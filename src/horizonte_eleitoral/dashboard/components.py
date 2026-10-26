@@ -1339,3 +1339,135 @@ def render_second_round_state_table(states_data: list[dict[str, Any]]) -> None:
         )
 
     st.dataframe(formatted_rows, hide_index=True, use_container_width=True)
+
+
+def render_general_model_documentation() -> None:
+    """Renderiza a documentacao explicativa abrangente e didatica do modelo HORIZON-MRP.
+
+    Apresenta a fundamentacao estatistica, o fluxo de dados em tempo real, a arquitetura
+    hierarquica multinivel (Nacional -> Regional -> Estadual -> Municipal), a calibracao
+    de swing via Newton-Raphson, o motor Monte Carlo e os principios de governanca.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    with st.expander(
+        "📖 Como o Horizonte Eleitoral Funciona · Documentação e Metodologia do Modelo",
+        expanded=False,
+    ):
+        st.markdown(
+            """
+            ### Fundamentação Científica e Arquitetura do Modelo HORIZON-MRP
+
+            O **Horizonte Eleitoral** é um sistema analítico de alta precisão desenhado para estimar
+            o resultado final das eleições presidenciais brasileiras antes da conclusão da apuração
+            oficial pelo Tribunal Superior Eleitoral (TSE), eliminando as ilusões causadas pela ordem
+            de transmissão das urnas eletrônicas.
+            """
+        )
+
+        col_d1, col_d2 = st.columns(2)
+        with col_d1:
+            st.markdown(
+                """
+                #### 1. O Problema: Viés Geográfico da Apuração
+                - **Transmissão Heterogênea:** As urnas no Brasil não são transmitidas ao acaso.
+                  Estados do Sul, Centro-Oeste e o interior de São Paulo fecham e transmitem seus
+                  boletins muito mais rápido do que grandes metrópoles e o Nordeste.
+                - **A Falsa "Virada":** Nos primeiros 10% a 30% da apuração, um candidato com apelo
+                  no Centro-Sul pode abrir até 10–20 pontos percentuais de vantagem artificial.
+                - **A Solução:** O algoritmo nunca olha apenas a média bruta das urnas abertas.
+                  Ele separa **Votos Observados** (intocáveis) e projeta as **Seções Pendentes**
+                  com base no seu perfil histórico e no deslocamento revelado pela eleição atual.
+                """
+            )
+        with col_d2:
+            st.markdown(
+                """
+                #### 2. O Modelo Preditivo: HORIZON-MRP
+                - **O que significa:** *Hierarchical Optimal Regression & Inferred Zonal Outcomes Network*.
+                - **Estrutura Multinível em 4 Camadas:**
+                  1. **Nível 1 (Nacional):** Efeito nacional ponderado pelo Censo Eleitoral
+                     (Sudeste: 42,8%, Nordeste: 27,1%, Sul: 14,8%, Norte: 8,0%, Centro-Oeste: 7,0%)
+                     com ancoragem no prior histórico para evitar contaminação por regiões precoces.
+                  2. **Nível 2 (Regional):** Encolhimento bayesiano das 5 macro-regiões ($K_{\\text{reg}}=30$).
+                  3. **Nível 3 (Estadual):** Encolhimento específico das 27 UFs ($K_{\\text{uf}}=20$).
+                  4. **Nível 4 (Municipal):** Ajuste fino modulado pelo Índice de Elasticidade Municipal (2018–2022).
+                """
+            )
+
+        st.markdown("---")
+        col_d3, col_d4 = st.columns(2)
+        with col_d3:
+            st.markdown(
+                """
+                #### 3. Inovação: Swing Calibrado por Newton-Raphson
+                - **Eliminação do Viés de Jensen:** Abordagens ingênuas com softmax agregada sofrem
+                  da desigualdade de Jensen ($\\mathbb{E}[g(X)] \\neq g(\\mathbb{E}[X])$), gerando
+                  erros sistemáticos de até $+0,43$ pp.
+                - **Consistência Exata:** O HORIZON-MRP resolve a equação de consistência eleitoral por
+                  **Newton-Raphson amortecido**:
+                  $$\\sum_{i \\in \\text{Obs}} V_i \\frac{b_{ik} e^{\\delta_k}}{\\sum_m b_{im} e^{\\delta_m}} = Y_k^{\\text{obs}}$$
+                  Isso garante reconstrução exata dos votos observados e projeções estritamente
+                  válidas no simplex probabilístico.
+                """
+            )
+        with col_d4:
+            st.markdown(
+                """
+                #### 4. Incerteza Calibrada via Monte Carlo
+                - **2.000 Sorteios Vetorizados:** A cada marco de apuração, o simulador estocástico
+                  propaga incertezas em escala nacional, regional e municipal.
+                - **Correção de População Finita (FPC):** À medida que as urnas são abertas e
+                  o eleitorado pendente tende a zero, o intervalo de credibilidade de 90%
+                  $[q_{05}, q_{95}]$ estreita-se gradativamente até colapsar monotonicamente em erro zero ($0,00$ pp).
+                - **Limiar de 2,0%:** Nenhuma projeção consolidada é liberada antes de 2% do eleitorado
+                  apurado, classificando números anteriores estritamente como preliminares.
+                """
+            )
+
+        st.markdown("---")
+        st.markdown(
+            """
+            #### 5. Pilares de Engenharia e Governança de Dados
+            <div class="model-card-grid">
+                <div class="model-card-box">
+                    <div class="model-card-box-titulo">🔒 Zero Data Leakage</div>
+                    <div class="model-card-box-desc">
+                        Nenhum cálculo tem acesso a dados do futuro. O corte temporal é estritamente cego
+                        para qualquer seção eleitoral cuja urna ainda não tenha sido oficialmente totalizada.
+                    </div>
+                </div>
+                <div class="model-card-box">
+                    <div class="model-card-box-titulo">🛑 Consistência Failure-Stop</div>
+                    <div class="model-card-box-desc">
+                        O motor de reconciliação valida a contagem de seções (EA16) com a totalização (EA20).
+                        Se houver divergência, o snapshot é marcado como DIVERGENTE e a publicação é bloqueada.
+                        Nunca alteramos votos observados.
+                    </div>
+                </div>
+                <div class="model-card-box">
+                    <div class="model-card-box-titulo">📦 Imutabilidade Append-Only</div>
+                    <div class="model-card-box-desc">
+                        Respostas da API do TSE são armazenadas com hash SHA-256 e manifestos canônicos.
+                        Tentativas de sobrescrita com conteúdo distinto lançam erro de imutabilidade.
+                    </div>
+                </div>
+                <div class="model-card-box">
+                    <div class="model-card-box-titulo">⚡ Apache Parquet & DuckDB</div>
+                    <div class="model-card-box-desc">
+                        499.206 seções pareadas de todo o Brasil processadas em armazenamento colunar Parquet
+                        com consultas analíticas em memória via DuckDB para resposta instantânea na navegação.
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+

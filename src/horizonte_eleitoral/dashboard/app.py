@@ -7,12 +7,17 @@ from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import httpx
 import streamlit as st
 
+from horizonte_eleitoral.backtest.second_round_validation import (
+    summarize_second_round_validation,
+)
 from horizonte_eleitoral.config import load_settings
 from horizonte_eleitoral.dashboard.charts import (
     build_projection_chart,
     build_second_round_chart,
+    build_second_round_error_chart,
 )
 from horizonte_eleitoral.dashboard.components import (
     render_candidate_cards,
@@ -24,14 +29,22 @@ from horizonte_eleitoral.dashboard.components import (
     render_polling_log_table,
     render_polling_status_box,
     render_second_round_candidate_cards,
+    render_second_round_history_table,
+    render_second_round_state_table,
+    render_second_round_validation_panel,
     render_state_diff_table,
 )
 from horizonte_eleitoral.dashboard.replay import (
+    SECOND_ROUND_LIVE_MODEL_REV,
     build_second_round_live_point,
     build_second_round_replay_point,
     generate_replay_timeline,
+    generate_second_round_state_projections,
+    generate_second_round_validation_timeline,
     generate_state_projections,
     load_replay_catalog,
+    load_second_round_validation_catalog,
+    refresh_stale_second_round_points,
 )
 from horizonte_eleitoral.dashboard.styles import get_custom_css
 from horizonte_eleitoral.ingestion.client import TSEAsyncClient
@@ -40,6 +53,7 @@ from horizonte_eleitoral.ingestion.tse_live_poller import (
     TSELivePoller,
     is_election_night_window,
 )
+from horizonte_eleitoral.normalization.models import NormalizedTotalization
 
 BRASILIA_TZ = ZoneInfo("America/Sao_Paulo")
 
@@ -60,32 +74,76 @@ def get_replay_catalog() -> list[dict[str, Any]]:
     return load_replay_catalog(limit_sections=None)
 
 
+@st.cache_resource(show_spinner="Carregando catálogo oficial consolidado do 2º Turno 2026...")
+def get_second_round_validation_catalog() -> list[dict[str, Any]]:
+    """Carrega o catalogo cronologico oficial do 2º Turno de 2026 em cache do Streamlit.
+
+    Args:
+        None.
+
+    Returns:
+        Lista ordenada cronologicamente de secoes do 2º turno com priors do 1º turno.
+
+    Raises:
+        FileNotFoundError: Se nenhum catalogo ou fixture for localizado.
+    """
+    return load_second_round_validation_catalog(limit_sections=None)
+
+
 def _render_first_round_tab() -> None:
     """Renderiza a aba de historico e validacao do 1º Turno de 2026 com o catalogo real."""
-    st.markdown("### Histórico e Validação do Modelo · 1º Turno 2026")
+    st.markdown("### Histórico e Validação · 1º Turno Presidencial 2026")
     st.caption(
-        "Acompanhe o comportamento do algoritmo bayesiano multinível Versão 2 "
-        "com dados reais consolidados de 499.206 seções eleitorais de 2026."
+        "Acompanhe a convergência das projeções estatísticas "
+        "com dados consolidados de 499.206 seções eleitorais de 2026."
     )
 
-    if "replay_wave" not in st.session_state:
-        st.session_state.replay_wave = 10.0
+    if "slider_1t" not in st.session_state:
+        st.session_state.slider_1t = 10.0
+
+    def _set_wave_1t(target: float) -> None:
+        """Define o percentual de apuracao do 1º turno."""
+        st.session_state.slider_1t = max(1.0, min(100.0, target))
+
+    def _step_wave_1t(delta: float) -> None:
+        """Incrementa ou decrementa o percentual do 1º turno."""
+        curr = float(st.session_state.get("slider_1t", 10.0))
+        st.session_state.slider_1t = max(1.0, min(100.0, round(curr + delta)))
 
     col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
-    if col_btn1.button("⏪ Início (1%)", use_container_width=True, key="btn_1t_1"):
-        st.session_state.replay_wave = 1.0
-    if col_btn2.button("◀️ -10%", use_container_width=True, key="btn_1t_m10"):
-        st.session_state.replay_wave = max(1.0, float(st.session_state.replay_wave) - 10.0)
-    if col_btn3.button("▶️ +10%", use_container_width=True, key="btn_1t_p10"):
-        st.session_state.replay_wave = min(100.0, float(st.session_state.replay_wave) + 10.0)
-    if col_btn4.button("⏩ Fim (100%)", use_container_width=True, key="btn_1t_100"):
-        st.session_state.replay_wave = 100.0
+    col_btn1.button(
+        "⏪ Início (1%)",
+        use_container_width=True,
+        key="btn_1t_1",
+        on_click=_set_wave_1t,
+        args=(1.0,),
+    )
+    col_btn2.button(
+        "◀️ -10%",
+        use_container_width=True,
+        key="btn_1t_m10",
+        on_click=_step_wave_1t,
+        args=(-10.0,),
+    )
+    col_btn3.button(
+        "▶️ +10%",
+        use_container_width=True,
+        key="btn_1t_p10",
+        on_click=_step_wave_1t,
+        args=(10.0,),
+    )
+    col_btn4.button(
+        "⏩ Fim (100%)",
+        use_container_width=True,
+        key="btn_1t_100",
+        on_click=_set_wave_1t,
+        args=(100.0,),
+    )
 
     current_wave_pct = st.slider(
         "Progresso do Eleitorado Apurado (%):",
         min_value=1.0,
         max_value=100.0,
-        value=float(st.session_state.replay_wave),
         step=1.0,
         format="%.1f%%",
         key="slider_1t",
@@ -195,10 +253,20 @@ def _render_second_round_tab() -> None:
     """Renderiza a aba de Tempo Real e Projecao para o 2º Turno Majoritario Oficial."""
     _init_second_round_state()
 
-    st.markdown("### Tempo Real Oficial TSE · 2º Turno Majoritário 2026")
+    if any(
+        p.get("is_live") and p.get("model_rev") != SECOND_ROUND_LIVE_MODEL_REV
+        for p in st.session_state.second_round_points
+    ):
+        with st.spinner("Recalculando histórico do 2º Turno com votos reais do TSE..."):
+            st.session_state.second_round_points = refresh_stale_second_round_points(
+                points=st.session_state.second_round_points,
+                catalog=get_replay_catalog(),
+            )
+
+    st.markdown("### Tempo Real Oficial TSE · 2º Turno Presidencial 2026")
     st.caption(
-        "Captura oficial de dados na API do TSE com checagens automáticas a cada 5 minutos "
-        "após as 17h de domingo e projeção bayesiana contínua da disputa Lula vs Bolsonaro."
+        "Monitoramento contínuo da API oficial do TSE com checagens automáticas "
+        "e projeção bayesiana da disputa presidencial."
     )
 
     settings = load_settings()
@@ -290,22 +358,42 @@ def _render_second_round_tab() -> None:
         local_time_str = now_dt.astimezone(BRASILIA_TZ).strftime("%H:%M")
         st.session_state.last_check_str = check_time_str
 
-        tse_client = TSEAsyncClient(settings)
         resolver = TSEPathResolver(
             base_url="https://resultados.tse.jus.br",
             election_id=election_id,
         )
-        poller = TSELivePoller(
-            client=tse_client,
-            resolver=resolver,
-            election_id=election_id,
-            round_num=2,
-            ignore_schedule_gate=ignore_gate,
-            endpoint_type=endpoint_type,
-        )
 
+        async def _poll_tse() -> tuple[
+            bool,
+            NormalizedTotalization | None,
+            str,
+            dict[str, NormalizedTotalization],
+            str,
+        ]:
+            async with httpx.AsyncClient(timeout=10.0) as hc:
+                tse_client = TSEAsyncClient(settings, http_client=hc)
+                poller = TSELivePoller(
+                    client=tse_client,
+                    resolver=resolver,
+                    election_id=election_id,
+                    round_num=2,
+                    ignore_schedule_gate=ignore_gate,
+                    endpoint_type=endpoint_type,
+                )
+                has_new_res, tot_res, msg_res = await poller.check_for_updates(now=now_dt)
+                uf_tots_res: dict[str, NormalizedTotalization] = {}
+                if (
+                    tot_res is not None
+                    and tot_res.valid_votes > 0
+                    and (tot_res.totalized_electorate / max(1, tot_res.total_electorate)) >= 0.02
+                ):
+                    uf_tots_res = await poller.fetch_state_totalizations()
+                return has_new_res, tot_res, msg_res, uf_tots_res, poller.get_target_url()
+
+        target_url_logged = resolver.url_for_divulgacao(round_num=2)
+        uf_tots: dict[str, NormalizedTotalization] = {}
         try:
-            has_new, tot, status_msg = asyncio.run(poller.check_for_updates(now=now_dt))
+            has_new, tot, status_msg, uf_tots, target_url_logged = asyncio.run(_poll_tse())
         except Exception as exc:
             has_new = False
             tot = None
@@ -321,15 +409,23 @@ def _render_second_round_tab() -> None:
                 totalization=tot,
                 time_str=local_time_str,
                 catalog=catalog,
+                state_totalizations=uf_tots or None,
             )
-            existing = [
-                p
-                for p in st.session_state.second_round_points
-                if abs(p["x"] - new_point["x"]) < 0.01 and p.get("apurado") == new_point["apurado"]
-            ]
-            if not existing:
+            matched_idx = next(
+                (
+                    idx
+                    for idx, p in enumerate(st.session_state.second_round_points)
+                    if abs(p["x"] - new_point["x"]) < 0.01
+                    and p.get("apurado") == new_point["apurado"]
+                ),
+                None,
+            )
+            if matched_idx is None:
                 st.session_state.second_round_points.append(new_point)
                 st.session_state.second_round_points.sort(key=lambda p: float(p["x"]))
+            else:
+                st.session_state.second_round_points[matched_idx] = new_point
+                has_new = False
 
             st.session_state.second_round_pct = float(new_point["x"])
 
@@ -353,7 +449,7 @@ def _render_second_round_tab() -> None:
                         "Apurado (%)": sec_pct_str,
                         "Dados Novos": "Sim",
                         "Mensagem": status_msg,
-                        "URL": poller.get_target_url(),
+                        "URL": target_url_logged,
                     }
                 )
                 return True, st.session_state.last_status_msg
@@ -370,7 +466,7 @@ def _render_second_round_tab() -> None:
                         "Apurado (%)": sec_pct_str,
                         "Dados Novos": "Não",
                         "Mensagem": status_msg,
-                        "URL": poller.get_target_url(),
+                        "URL": target_url_logged,
                     }
                 )
                 return False, status_msg
@@ -404,7 +500,7 @@ def _render_second_round_tab() -> None:
                     "Apurado (%)": f"{st.session_state.second_round_pct:.2f}%",
                     "Dados Novos": "Não",
                     "Mensagem": status_msg,
-                    "URL": poller.get_target_url(),
+                    "URL": target_url_logged,
                 }
             )
             return False, status_msg
@@ -472,20 +568,164 @@ def _render_second_round_tab() -> None:
 
     # 5. Grafico de Projecao do 2º Turno em Altair
     st.markdown("#### Evolução da Apuração e Projeção · 2º Turno")
+    render_chart_guide(round_num=2)
     chart_2t = build_second_round_chart(points=st.session_state.second_round_points)
-    st.altair_chart(chart_2t, use_container_width=True)
+    st.altair_chart(chart_2t, use_container_width=True, theme="streamlit")
 
     # 6. Tabela Historica das Ondas do 2º Turno
     with st.expander("📊 Ver histórico de ondas da apuração do 2º Turno"):
-        render_history_table(points=st.session_state.second_round_points)
+        render_second_round_history_table(points=st.session_state.second_round_points)
 
     # 7. Log de Requisicoes a API Oficial do TSE
     with st.expander("🌐 Log detalhado de requisições à API Oficial do TSE"):
         render_polling_log_table(st.session_state.tse_log_entries)
 
 
+def _render_second_round_validation_tab() -> None:
+    """Renderiza a aba de Historico e Validacao Retroativa do Modelo para o 2º Turno de 2026."""
+    st.markdown("### Histórico e Validação · 2º Turno Presidencial 2026")
+    st.caption(
+        "Auditoria retroativa da projeção estatística onda a onda frente "
+        "ao resultado oficial do TSE (5.716 municípios e 499.206 seções)."
+    )
+
+    if "slider_2t_val" not in st.session_state:
+        st.session_state.slider_2t_val = 100.0
+
+    def _set_wave_2t(target: float) -> None:
+        """Define o percentual de apuracao do 2º turno de forma segura."""
+        st.session_state.slider_2t_val = max(0.25, min(100.0, target))
+
+    def _step_wave_2t(delta: float) -> None:
+        """Incrementa ou decrementa o percentual do 2º turno em passos de 10%."""
+        curr = float(st.session_state.get("slider_2t_val", 100.0))
+        st.session_state.slider_2t_val = max(
+            0.25,
+            min(100.0, round((curr + delta) * 4.0) / 4.0),
+        )
+
+    col_b1, col_b2, col_b3, col_b4 = st.columns(4)
+    col_b1.button(
+        "⏪ 0,25% (17h–19h)",
+        use_container_width=True,
+        key="btn_2t_val_1",
+        on_click=_set_wave_2t,
+        args=(0.25,),
+    )
+    col_b2.button(
+        "◀️ -10%",
+        use_container_width=True,
+        key="btn_2t_val_m10",
+        on_click=_step_wave_2t,
+        args=(-10.0,),
+    )
+    col_b3.button(
+        "▶️ +10%",
+        use_container_width=True,
+        key="btn_2t_val_p10",
+        on_click=_step_wave_2t,
+        args=(10.0,),
+    )
+    col_b4.button(
+        "⏩ Fim (100%)",
+        use_container_width=True,
+        key="btn_2t_val_100",
+        on_click=_set_wave_2t,
+        args=(100.0,),
+    )
+
+    current_wave_pct = st.slider(
+        "Progresso do Eleitorado Apurado no 2º Turno (%):",
+        min_value=0.25,
+        max_value=100.0,
+        step=0.25,
+        format="%.2f%%",
+        key="slider_2t_val",
+    )
+    st.session_state.replay_wave_2t = current_wave_pct
+    current_wave = current_wave_pct / 100.0
+
+    with st.spinner("Avaliando projeção retroativa do 2º Turno com dados reais do TSE..."):
+        catalog_2t = get_second_round_validation_catalog()
+        points_2t = generate_second_round_validation_timeline(
+            catalog_2t=catalog_2t,
+            current_wave=current_wave,
+        )
+        full_series_2t = generate_second_round_validation_timeline(
+            catalog_2t=catalog_2t,
+            current_wave=1.0,
+        )
+        val_summary = summarize_second_round_validation(full_series_2t)
+        states_2t = generate_second_round_state_projections(
+            catalog_2t=catalog_2t,
+            wave=current_wave,
+        )
+
+    latest_point = points_2t[-1] if points_2t else None
+    electorate_pct = float(latest_point["x"]) if latest_point else current_wave_pct
+    updated_str = str(latest_point["t"]) if latest_point else "17:04"
+
+    # 1. Cabecalho Editorial do 2o Turno
+    render_editorial_header(
+        electorate_pct=electorate_pct,
+        updated_str=updated_str,
+        environment="replay",
+        round_num=2,
+    )
+
+    # 2. Cartoes de Candidatos (Lula vs Flavio Bolsonaro) no marco selecionado
+    render_second_round_candidate_cards(latest_point=latest_point)
+
+    # 3. Painel de Qualidade e Auditoria Retroativa do Modelo contra o Resultado Oficial TSE
+    render_second_round_validation_panel(
+        latest_point=latest_point,
+        validation_summary=val_summary,
+    )
+
+    # 4. Grafico Principal de Evolucao (Apurado TSE vs Projecao V2 vs Gabarito Final)
+    st.markdown("#### Evolução da Apuração Oficial e Projeção Final · 2º Turno")
+    render_chart_guide(round_num=2)
+    chart_main = build_second_round_chart(
+        points=points_2t,
+        final_result=val_summary.get("final_oficial"),
+    )
+    st.altair_chart(chart_main, use_container_width=True, theme="streamlit")
+
+    # 5. Grafico Comparativo de Erro Absoluto (Modelo V2 vs Urna Bruta)
+    st.markdown("#### Qualidade do Modelo: Erro Absoluto ao Longo da Apuração")
+    chart_err = build_second_round_error_chart(points=points_2t)
+    st.altair_chart(chart_err, use_container_width=True, theme="streamlit")
+
+    # 6. Tabela de Auditoria Onda a Onda
+    with st.expander(
+        "📊 Auditoria onda a onda: evolução das projeções, intervalos e erros (2º Turno)",
+        expanded=True,
+    ):
+        render_second_round_history_table(points=points_2t)
+
+    # 7. Validacao por Estado (27 UFs + Exterior ZZ)
+    with st.expander("🗺️ Desempenho e validação do modelo por estado (27 UFs + Exterior ZZ)"):
+        render_second_round_state_table(states_data=states_2t)
+
+    # 8. Metodologia e Model Card
+    render_model_card_expander(
+        {
+            "model_version": (
+                "2026.2 (Bayesiano Multinível V2 · Priors 1º Turno 2026 + Elasticidade 2018–2022)"
+            ),
+            "target_error_margin": (
+                "≤ 0.50 pp a partir de 2,0% do eleitorado apurado (zero vazamento temporal)"
+            ),
+            "disclaimer": (
+                "Auditoria retroativa executada sobre as totalizações municipais e estaduais "
+                "oficiais divulgadas pelo TSE na eleição 6258 (2º Turno Presidencial 2026)."
+            ),
+        }
+    )
+
+
 def render_dashboard() -> None:
-    """Renderiza a aplicacao visual completa com navegacao em duas abas especializadas."""
+    """Renderiza a aplicacao visual completa com navegacao em abas de validacao e monitoramento."""
     st.set_page_config(
         page_title="Horizonte Eleitoral · Apuração e Projeção 2026",
         page_icon="🗳️",
@@ -496,22 +736,32 @@ def render_dashboard() -> None:
     st.markdown(get_custom_css(), unsafe_allow_html=True)
 
     st.sidebar.title("🗳️ Horizonte Eleitoral")
-    st.sidebar.caption(
-        "Sistema de Projeção Bayesiana Multinível V2 com Elasticidade Municipal 2018–2022."
+    st.sidebar.markdown(
+        """
+        <div class="sidebar-model-badge">
+            <div class="model-badge-header">PROJEÇÃO ESTATÍSTICA OFICIAL</div>
+            <div class="model-badge-name">Modelo Bayesiano Multinível V2</div>
+            <div class="model-badge-meta">Elasticidade Municipal 2018–2022 · Apuração TSE</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    # Estrutura principal dividida em duas abas
-    tab_1t, tab_2t = st.tabs(
+    tab_2t_val, tab_1t, tab_2t_live = st.tabs(
         [
+            "🏆 Histórico e Validação · 2º Turno 2026",
             "📊 Histórico do 1º Turno (Validação e Replay)",
-            "⚡ Tempo Real - 2º Turno (Apuração Oficial TSE)",
+            "⚡ Tempo Real · 2º Turno (API Oficial TSE)",
         ]
     )
+
+    with tab_2t_val:
+        _render_second_round_validation_tab()
 
     with tab_1t:
         _render_first_round_tab()
 
-    with tab_2t:
+    with tab_2t_live:
         _render_second_round_tab()
 
 

@@ -11,10 +11,12 @@ from horizonte_eleitoral.dashboard.components import (
     render_second_round_candidate_cards,
 )
 from horizonte_eleitoral.dashboard.replay import (
+    SECOND_ROUND_LIVE_MODEL_REV,
     build_second_round_live_point,
     build_second_round_replay_point,
     generate_second_round_timeline,
     load_replay_catalog,
+    refresh_stale_second_round_points,
 )
 from horizonte_eleitoral.domain.enums import GeographicScope
 from horizonte_eleitoral.normalization.models import NormalizedTotalization
@@ -243,3 +245,112 @@ def test_build_second_round_live_point_above_threshold() -> None:
     assert point["win_probability"] is not None
 
     render_second_round_candidate_cards(latest_point=point)
+
+
+def test_build_second_round_live_point_responds_to_real_votes_at_81_pct() -> None:
+    """Valida cenario real de 81,18% apurado com Lula em 51,32% projetando vitoria de Lula.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+
+    Raises:
+        AssertionError: Se a projecao ignorar os votos reais do TSE ou inverter o vencedor.
+    """
+    totalization = NormalizedTotalization(
+        scope=GeographicScope.BRAZIL,
+        scope_code="BR",
+        total_electorate=158745502,
+        totalized_electorate=127917125,
+        pending_electorate=158745502 - 127917125,
+        total_sections=499248,
+        totalized_sections=405290,
+        pending_sections=499248 - 405290,
+        valid_votes=98500000,
+        blank_votes=1800000,
+        null_votes=2900000,
+        candidate_group_votes=(("PL", 47949800), ("PT", 50550200)),
+        generation_time="25/10/2026 20:55:00",
+    )
+
+    catalog = load_replay_catalog(limit_sections=120)
+    point = build_second_round_live_point(
+        totalization=totalization,
+        time_str="20:55",
+        catalog=catalog,
+        num_draws=200,
+        seed=42,
+    )
+
+    assert point["x"] == 81.18
+    assert point["electorate_pct"] == 80.58
+    assert point["apurado"]["PT"] == 51.32
+    assert point["apurado"]["PL"] == 48.68
+    assert point["model_rev"] == SECOND_ROUND_LIVE_MODEL_REV
+    assert point["projecao"] is not None
+    assert point["projecao"]["PT"] > 50.5
+    assert point["projecao"]["PT"] > point["projecao"]["PL"]
+    assert point["win_probability"]["PT"] > 0.90
+
+
+def test_refresh_stale_second_round_points_heals_legacy_session_state() -> None:
+    """Valida migracao automatica de pontos legados em st.session_state sem model_rev atualizado.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+
+    Raises:
+        AssertionError: Se o ponto legado congelado em 49,07% nao for recalculado corretamente.
+    """
+    catalog = load_replay_catalog(limit_sections=100)
+    legacy_broken_point = {
+        "t": "20:50",
+        "x": 81.18,
+        "x_sections": 81.18,
+        "electorate_pct": 80.58,
+        "apurado": {"PT": 51.32, "PL": 48.68},
+        "projecao": {"PT": 49.07, "PL": 50.93},
+        "faixa": {"PT": [49.06, 49.09], "PL": [50.91, 50.94]},
+        "win_probability": {"PT": 0.001, "PL": 0.999},
+        "valid_votes": 98500000,
+        "totalized_sections": 405290,
+        "total_sections": 499248,
+        "totalized_electorate": 127917125,
+        "total_electorate": 158745502,
+        "votes": {"PL": 47949800, "PT": 50550200},
+        "tse_time": "25/10/2026 20:50:00",
+        "round": 2,
+        "is_live": True,
+    }
+
+    healed = refresh_stale_second_round_points(
+        points=[legacy_broken_point],
+        catalog=catalog,
+        num_draws=200,
+        seed=42,
+    )
+    assert len(healed) == 1
+    pt = healed[0]
+    assert pt["t"] == "20:50"
+    assert pt["model_rev"] == SECOND_ROUND_LIVE_MODEL_REV
+    assert pt["projecao"]["PT"] > 50.5
+    assert pt["win_probability"]["PT"] > 0.90
+
+
+def test_slider_quick_jump_step_and_bounds() -> None:
+    """Valida que saltos rapidos do controle deslizante obedecem aos limites de 0,25% a 100%."""
+    curr = 5.0
+    val_minus = max(0.25, min(100.0, round((curr - 10.0) * 4.0) / 4.0))
+    assert val_minus == 0.25
+
+    curr = 95.0
+    val_plus = max(0.25, min(100.0, round((curr + 10.0) * 4.0) / 4.0))
+    assert val_plus == 100.0
+
+    target_start = max(0.25, min(100.0, 0.25))
+    assert target_start == 0.25

@@ -65,12 +65,28 @@ def test_tse_path_resolver_generates_canonical_urls() -> None:
 
 
 def test_tse_path_resolver_rejects_invalid_inputs() -> None:
-    """Valida rejeicao de URLs nao HTTPS e election_id vazio."""
+    """Valida rejeicao de URLs nao HTTPS, election_id vazio e ano fora de faixa."""
     with pytest.raises(ValidationError, match="https://"):
         TSEPathResolver("http://inseguro.tse.jus.br", "002026")
 
     with pytest.raises(ValidationError, match="election_id"):
         TSEPathResolver("https://dadosabertos.tse.jus.br", "")
+
+    with pytest.raises(ValidationError, match="ano eleitoral valido"):
+        TSEPathResolver("https://dadosabertos.tse.jus.br", "6258", year=1980)
+
+
+def test_tse_path_resolver_custom_year() -> None:
+    """Valida geracao de URLs com ano customizado (ex: 2022)."""
+    resolver_2022 = TSEPathResolver(
+        base_url="https://resultados.tse.jus.br",
+        election_id="545",
+        year=2022,
+    )
+    url_2022 = resolver_2022.url_for_divulgacao()
+    assert url_2022 == (
+        "https://resultados.tse.jus.br/oficial/ele2022/545/dados/br/br-c0001-e000545-u.json"
+    )
 
 
 @pytest.mark.asyncio

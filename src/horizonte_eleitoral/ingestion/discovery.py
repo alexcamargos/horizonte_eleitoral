@@ -14,22 +14,26 @@ class TSEPathResolver:
 
     Attributes:
         base_url: Host base do TSE (e.g. 'https://dadosabertos.tse.jus.br' ou simulador).
-        election_id: Codigo oficial da eleicao (e.g. '002026').
+        election_id: Codigo oficial da eleicao (e.g. '002026' ou '6258').
+        year: Ano do pleito eleitoral correspondente (padrao: 2026).
     """
 
     base_url: str
     election_id: str
+    year: int = 2026
 
     def __post_init__(self) -> None:
-        """Valida que base_url e election_id sao validos.
+        """Valida que base_url, election_id e year sao validos.
 
         Raises:
-            ValidationError: Se base_url nao for HTTPS ou election_id for vazio.
+            ValidationError: Se base_url nao for HTTPS, election_id for vazio ou year for invalido.
         """
         if not self.base_url.startswith("https://"):
             raise ValidationError("base_url deve iniciar com https://.")
         if not self.election_id or not self.election_id.strip():
             raise ValidationError("election_id nao pode ser vazio.")
+        if self.year < 1990 or self.year > 2100:
+            raise ValidationError("year deve ser um ano eleitoral valido entre 1990 e 2100.")
 
     def url_for_config(self, artifact_type: ArtifactType) -> str:
         """Retorna a URL oficial para arquivos de configuracao geral (EA11 ou EA12).
@@ -153,7 +157,7 @@ class TSEPathResolver:
         )
         padded_code = self.election_id.zfill(6) if self.election_id.isdigit() else self.election_id
         return (
-            f"{clean_base}/oficial/ele2026/{election_code}/dados/"
+            f"{clean_base}/oficial/ele{self.year}/{election_code}/dados/"
             f"{st}/{st}-{cargo_code}-e{padded_code}-u.json"
         )
 
@@ -186,6 +190,6 @@ class TSEPathResolver:
         )
         padded_code = self.election_id.zfill(6) if self.election_id.isdigit() else self.election_id
         return (
-            f"{clean_base}/oficial/ele2026/{election_code}/dados-simplificados/"
+            f"{clean_base}/oficial/ele{self.year}/{election_code}/dados-simplificados/"
             f"{st}/{st}-{cargo_code}-e{padded_code}-r.json"
         )

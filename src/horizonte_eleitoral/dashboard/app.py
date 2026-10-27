@@ -156,6 +156,7 @@ def _render_first_round_tab() -> None:
     with st.spinner("Computando projeção bayesiana da rodada com o catálogo de 2026..."):
         catalog = get_replay_catalog()
         points = generate_replay_timeline(catalog=catalog, current_wave=current_wave)
+        full_series = generate_replay_timeline(catalog=catalog, current_wave=1.0)
         states_data = generate_state_projections(catalog=catalog, wave=current_wave)
 
     latest_point = points[-1] if points else None
@@ -179,7 +180,34 @@ def _render_first_round_tab() -> None:
     # Grafico Interativo Duplo em Altair
     st.markdown("#### Evolução da Apuração e Projeção Final")
     render_chart_guide()
-    chart = build_projection_chart(points=points)
+
+    col_v1, _ = st.columns([2.2, 1.8])
+    with col_v1:
+        view_opt_1t = st.radio(
+            "Extensão da visualização do 1º Turno:",
+            options=[
+                "Projeção estendida até o final (100%)",
+                "Série Completa de Auditoria (1% a 100%)",
+            ],
+            index=0,
+            horizontal=True,
+            key="radio_1t_view_extent",
+            help=(
+                "Projeção estendida exibe a trajetória e o resultado final projetado (100%) "
+                "a partir do marco atual. Série Completa exibe a convergência de todos os marcos."
+            ),
+        )
+
+    is_full_1t = "Completa" in view_opt_1t
+    chart_points_1t = full_series if is_full_1t else points
+    final_res_1t = {"PT": 45.16, "PL": 47.03, "OUTROS": 7.81}
+
+    chart = build_projection_chart(
+        points=chart_points_1t,
+        active_wave=current_wave_pct,
+        final_result=final_res_1t,
+        extend_to_end=not is_full_1t,
+    )
     st.altair_chart(chart, use_container_width=True)
 
     # Tabela Historica Expansivel
@@ -683,7 +711,12 @@ def _render_real_time_tab() -> None:
 
         st.markdown("#### Evolução da Apuração e Projeção · 1º Turno")
         render_chart_guide(round_num=1)
-        chart_1t = build_projection_chart(points=active_points)
+        active_wave_live = float(latest_live_point["x"]) if latest_live_point else None
+        chart_1t = build_projection_chart(
+            points=active_points,
+            active_wave=active_wave_live,
+            extend_to_end=True,
+        )
         st.altair_chart(chart_1t, use_container_width=True)
 
         with st.expander("📊 Ver histórico de ondas da apuração do 1º Turno"):

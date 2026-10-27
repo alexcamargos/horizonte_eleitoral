@@ -114,3 +114,149 @@ def test_render_general_model_documentation(mocker: MockerFixture) -> None:
     assert mock_expander.called
     assert mock_markdown.called
     assert mock_columns.called
+
+
+def test_build_candidate_card_html_contains_standardized_tokens() -> None:
+    """Valida presenca dos elementos padronizados do cartao de candidato em ambos os turnos."""
+    from horizonte_eleitoral.dashboard.components import _build_candidate_card_html
+
+    card_html = _build_candidate_card_html(
+        bloco="PT",
+        nome="Lula",
+        partido_legenda="PT · 13",
+        proj_val=51.70,
+        obs_val=49.15,
+        q05_val=51.58,
+        q95_val=51.82,
+        is_lider=True,
+        status_box_text="🏆 Chance de Vitória: 99.9% (Liderança)",
+        status_box_cls="chance-lider",
+    )
+
+    # Identidade visual e borda
+    assert "cartao-candidato cartao-candidato-pt cartao-lider" in card_html
+    assert "cartao-cabecalho" in card_html
+    assert "Lula" in card_html
+    assert "badge-partido-pt" in card_html
+    assert "PT · 13" in card_html
+    assert "cartao-badge-lider" in card_html
+    assert "Líder projetado" in card_html
+
+    # Projecao e rotulo explícito
+    assert "cartao-valor-destaque cartao-projecao-pt" in card_html
+    assert "51,70" in card_html
+    assert "cartao-sinal-pct" in card_html
+    assert "Projeção do resultado final" in card_html
+
+    # Intervalo de 90%
+    assert "Intervalo de 90%: 51,58% – 51,82%" in card_html
+
+    # Urna e explicacao de vies
+    assert "Oficial apurado no TSE:" in card_html
+    assert "49,15%" in card_html
+    assert "cartao-vies-nota" in card_html
+    assert "Diferença de +2,6 pp decorre da ordem de apuração regional das urnas." in card_html
+
+    # Rodape de status
+    assert "chance-vitoria-box chance-lider" in card_html
+    assert "Chance de Vitória: 99.9%" in card_html
+
+
+def test_render_candidate_cards_1t_executes_cleanly() -> None:
+    """Valida renderizacao dos 3 cartoes padronizados no 1º Turno sem erros."""
+    from horizonte_eleitoral.dashboard.components import render_candidate_cards
+
+    sample_point = {
+        "t": "18:30",
+        "x": 30.0,
+        "apurado": {"PT": 36.87, "PL": 54.30, "OUTROS": 8.83},
+        "projecao": {"PT": 45.19, "PL": 46.98, "OUTROS": 7.83},
+        "faixa": {
+            "PT": [44.91, 45.45],
+            "PL": [46.71, 47.23],
+            "OUTROS": [7.75, 7.92],
+        },
+    }
+    render_candidate_cards(latest_point=sample_point)
+
+
+def test_render_validation_panels_both_rounds_execute_cleanly() -> None:
+    """Valida execucao do painel de 4 KPIs de validacao historica para 1º e 2º turno."""
+    from horizonte_eleitoral.dashboard.components import (
+        render_first_round_validation_panel,
+        render_second_round_validation_panel,
+    )
+
+    pt_1t = {
+        "metrics": {
+            "model_mae_pp": 0.03,
+            "raw_mae_pp": 5.53,
+            "mae_gain_pp": 5.50,
+            "ci_90_covered": True,
+        }
+    }
+    summary_1t = {
+        "final_oficial": {"PT": 45.16, "PL": 47.03, "OUTROS": 7.81},
+        "ci_90_coverage_pct": 100.0,
+        "statistical_call_pct": 2.0,
+        "statistical_call_time": "17:06",
+        "mean_model_mae_pp": 0.04,
+    }
+    render_first_round_validation_panel(latest_point=pt_1t, validation_summary=summary_1t)
+
+    pt_2t = {
+        "metrics": {
+            "model_mae_pp": 0.09,
+            "raw_mae_pp": 2.64,
+            "mae_gain_pp": 2.55,
+            "ci_90_covered": True,
+        }
+    }
+    summary_2t = {
+        "final_oficial": {"PT": 51.79, "PL": 48.21},
+        "ci_90_coverage_pct": 92.3,
+        "statistical_call_pct": 2.0,
+        "statistical_call_time": "19:20",
+        "mean_model_mae_pp": 0.12,
+    }
+    render_second_round_validation_panel(latest_point=pt_2t, validation_summary=summary_2t)
+
+
+def test_summarize_first_round_validation_logic() -> None:
+    """Valida geracao de metricas consolidadas do 1º Turno a partir de pontos simulados."""
+    from horizonte_eleitoral.dashboard.replay import summarize_first_round_validation
+
+    sample_points = [
+        {
+            "t": "17:03",
+            "x": 1.0,
+            "apurado": {"PT": 36.16, "PL": 54.75, "OUTROS": 9.09},
+            "projecao": None,
+            "faixa": None,
+            "metrics": {},
+        },
+        {
+            "t": "17:06",
+            "x": 2.0,
+            "apurado": {"PT": 35.77, "PL": 55.14, "OUTROS": 9.09},
+            "projecao": {"PT": 45.25, "PL": 46.99, "OUTROS": 7.77},
+            "faixa": {
+                "PT": [44.66, 45.80],
+                "PL": [46.41, 47.52],
+                "OUTROS": [7.63, 7.91],
+            },
+            "metrics": {
+                "model_mae_pp": 0.06,
+                "raw_mae_pp": 6.26,
+                "mae_gain_pp": 6.20,
+                "ci_90_covered": True,
+            },
+        },
+    ]
+
+    summary = summarize_first_round_validation(sample_points)
+    assert summary["winner_code"] == "PL"
+    assert summary["partial_waves_count"] == 1
+    assert summary["mean_model_mae_pp"] == 0.06
+    assert summary["ci_90_coverage_pct"] == 100.0
+    assert summary["statistical_call_pct"] == 2.0

@@ -73,6 +73,7 @@ def build_projection_chart(
     active_wave: float | None = None,
     final_result: dict[str, float] | None = None,
     extend_to_end: bool = True,
+    **kwargs: Any,
 ) -> alt.VConcatChart | alt.Chart:
     """Gera o grafico visual composto em Altair para acompanhamento da apuracao do 1º Turno.
 

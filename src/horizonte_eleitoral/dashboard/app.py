@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -14,8 +15,8 @@ from horizonte_eleitoral.backtest.second_round_validation import (
     summarize_second_round_validation,
 )
 from horizonte_eleitoral.config import load_settings
+from horizonte_eleitoral.dashboard import charts as dashboard_charts
 from horizonte_eleitoral.dashboard.charts import (
-    build_projection_chart,
     build_second_round_chart,
     build_second_round_error_chart,
 )
@@ -202,7 +203,7 @@ def _render_first_round_tab() -> None:
     chart_points_1t = full_series if is_full_1t else points
     final_res_1t = {"PT": 45.16, "PL": 47.03, "OUTROS": 7.81}
 
-    chart = build_projection_chart(
+    chart = dashboard_charts.build_projection_chart(
         points=chart_points_1t,
         active_wave=current_wave_pct,
         final_result=final_res_1t,
@@ -236,8 +237,8 @@ def _render_first_round_tab() -> None:
     )
 
 
-def _init_second_round_state() -> None:
-    """Inicializa as variaveis de sessao necessarias para o monitoramento em tempo real."""
+def _init_dashboard_session_state() -> None:
+    """Inicializa as variaveis de sessao necessarias para o monitoramento e replay do dashboard."""
     if "second_round_points" not in st.session_state:
         st.session_state.second_round_points = []
 
@@ -254,6 +255,9 @@ def _init_second_round_state() -> None:
         st.session_state.last_status_msg = (
             "Monitoramento conectado à API do TSE. Aguardando disparo manual ou automático."
         )
+
+
+_init_second_round_state = _init_dashboard_session_state
 
 
 def _execute_second_round_step(target_pct: float) -> dict[str, Any]:
@@ -474,6 +478,7 @@ def _render_real_time_tab() -> None:
         btn_sim = st.button("🚀 Forçar Passo Simulado")
 
     def _poll_and_update(sim_pct: float | None = None) -> tuple[bool, str]:
+        _init_dashboard_session_state()
         now_dt = datetime.now(UTC)
         check_time_str = now_dt.strftime("%H:%M:%S UTC")
         local_time_str = now_dt.astimezone(BRASILIA_TZ).strftime("%H:%M")
@@ -712,7 +717,7 @@ def _render_real_time_tab() -> None:
         st.markdown("#### Evolução da Apuração e Projeção · 1º Turno")
         render_chart_guide(round_num=1)
         active_wave_live = float(latest_live_point["x"]) if latest_live_point else None
-        chart_1t = build_projection_chart(
+        chart_1t = dashboard_charts.build_projection_chart(
             points=active_points,
             active_wave=active_wave_live,
             extend_to_end=True,
@@ -969,6 +974,12 @@ def render_dashboard() -> None:
         Consulte o expander no topo da página para a **Documentação Geral** completa.
         """
     )
+
+    # Forca reload do modulo de graficos para garantir atualizacao de assinaturas no Streamlit
+    importlib.reload(dashboard_charts)
+
+    # Inicializa todas as variaveis de sessao de forma preventiva
+    _init_dashboard_session_state()
 
     # Documentacao Geral do Modelo em Destaque para Visitantes Atentos
     render_general_model_documentation()

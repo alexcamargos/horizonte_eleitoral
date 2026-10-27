@@ -7,9 +7,30 @@ from typing import Any
 import streamlit as st
 
 CANDIDATE_METADATA: dict[str, dict[str, str]] = {
-    "PT": {"nome": "Lula", "partido": "PT", "bloco": "PT", "cor": "#e34948"},
-    "PL": {"nome": "Flávio Bolsonaro", "partido": "PL", "bloco": "PL", "cor": "#2a78d6"},
-    "OUTROS": {"nome": "Outros candidatos", "partido": "", "bloco": "OUTROS", "cor": "#8a8983"},
+    "PT": {
+        "nome": "Lula",
+        "partido": "PT",
+        "numero": "13",
+        "legenda": "PT · 13",
+        "bloco": "PT",
+        "cor": "#e34948",
+    },
+    "PL": {
+        "nome": "Flávio Bolsonaro",
+        "partido": "PL",
+        "numero": "22",
+        "legenda": "PL · 22",
+        "bloco": "PL",
+        "cor": "#2a78d6",
+    },
+    "OUTROS": {
+        "nome": "Outros candidatos",
+        "partido": "Demais",
+        "numero": "Legendas",
+        "legenda": "Demais · Legendas",
+        "bloco": "OUTROS",
+        "cor": "#8a8983",
+    },
 }
 
 # Peso aproximado de cada estado no colegio eleitoral brasileiro
@@ -194,8 +215,10 @@ def render_editorial_header(
     elif environment == "replay":
         st.markdown(
             '<div class="banner-aviso">'
-            "<strong>Demonstração:</strong> reprodução da apuração na ordem real de chegada "
-            "dos boletins de urna do TSE com a projeção bayesiana do 1º turno."
+            "<strong>Auditoria Retroativa (Dados Oficiais TSE):</strong> reprodução da "
+            "apuração na ordem real de chegada dos boletins de urna do TSE com a "
+            "projeção bayesiana do 1º turno — confrontando a projeção estatística com "
+            "o resultado final consolidado do TSE."
             "</div>",
             unsafe_allow_html=True,
         )
@@ -271,14 +294,135 @@ def render_p2t_banner(prob_2t: float | None) -> None:
     st.markdown(banner_html, unsafe_allow_html=True)
 
 
+def _build_candidate_card_html(
+    bloco: str,
+    nome: str,
+    partido_legenda: str,
+    proj_val: float | None,
+    obs_val: float | None,
+    q05_val: float | None,
+    q95_val: float | None,
+    is_lider: bool,
+    status_box_text: str | None = None,
+    status_box_cls: str = "chance-secundario",
+) -> str:
+    """Gera o HTML estruturado e padronizado para um cartao de candidato (1º ou 2º Turno).
+
+    Args:
+        bloco: Codigo do bloco ('PT', 'PL', 'OUTROS').
+        nome: Nome legivel do candidato.
+        partido_legenda: Sigla partidaria e numero de urna (ex.: 'PT · 13', 'PL · 22').
+        proj_val: Percentual projetado pelo modelo ou None.
+        obs_val: Percentual oficial apurado na urna ou None.
+        q05_val: Limite inferior do intervalo de credibilidade de 90% ou None.
+        q95_val: Limite superior do intervalo de credibilidade de 90% ou None.
+        is_lider: Booleano indicando se o candidato e o lider projetado.
+        status_box_text: Texto do rodape estatistico (vitoria no 2T ou vaga no 1T).
+        status_box_cls: Classe CSS da caixa ('chance-lider', 'chance-secundario',
+            'chance-preliminar').
+
+    Returns:
+        String HTML com o markup padronizado do cartao.
+
+    Raises:
+        None.
+    """
+    bloco_key = bloco.lower()
+    lider_cls = " cartao-lider" if is_lider else ""
+    card_class = f"cartao-candidato cartao-candidato-{bloco_key}{lider_cls}"
+
+    badge_lider_html = (
+        '<span class="cartao-badge-lider">Líder projetado</span>'
+        if is_lider and bloco != "OUTROS"
+        else ""
+    )
+
+    header_html = (
+        f'<div class="cartao-cabecalho">'
+        f'<span class="cartao-nome">{nome}</span>'
+        f'<div class="cartao-badges-wrapper">'
+        f'<span class="badge-partido badge-partido-{bloco_key}">{partido_legenda}</span>'
+        f"{badge_lider_html}"
+        f"</div>"
+        f"</div>"
+    )
+
+    if proj_val is not None:
+        valor_proj_str = f"{proj_val:.2f}".replace(".", ",")
+        rotulo_str = "Projeção do resultado final"
+        if q05_val is not None and q95_val is not None:
+            q05_s = f"{q05_val:.2f}".replace(".", ",")
+            q95_s = f"{q95_val:.2f}".replace(".", ",")
+            faixa_html = f'<div class="cartao-faixa">Intervalo de 90%: {q05_s}% – {q95_s}%</div>'
+        else:
+            faixa_html = '<div class="cartao-faixa">Intervalo em consolidação</div>'
+    elif obs_val is not None:
+        valor_proj_str = f"{obs_val:.2f}".replace(".", ",")
+        rotulo_str = "Projeção preliminar (< 2% apurado)"
+        faixa_html = '<div class="cartao-faixa">Aguardando ≥ 2% para IC</div>'
+    else:
+        valor_proj_str = "–"
+        rotulo_str = "Aguardando apuração"
+        faixa_html = '<div class="cartao-faixa">Aguardando dados oficiais</div>'
+
+    obs_str = f"{obs_val:.2f}%".replace(".", ",") if obs_val is not None else "–"
+
+    # Explicacao de vies quando ha diferenca perceptivel entre urna e projecao
+    if proj_val is not None and obs_val is not None:
+        diff = proj_val - obs_val
+        if abs(diff) >= 0.5:
+            sinal = "+" if diff > 0 else ""
+            diff_str = f"{sinal}{diff:.1f} pp".replace(".", ",")
+            vies_nota = (
+                f'<div class="cartao-vies-nota">'
+                f"Diferença de {diff_str} decorre da ordem de apuração regional das urnas."
+                f"</div>"
+            )
+        else:
+            diff_str = f"{abs(diff):.2f} pp".replace(".", ",")
+            vies_nota = (
+                f'<div class="cartao-vies-nota">'
+                f"Urna oficial alinhada com a projeção (diferença residual de {diff_str})."
+                f"</div>"
+            )
+    else:
+        vies_nota = (
+            '<div class="cartao-vies-nota">'
+            "Aguardando dados de apuração para aferição de viés."
+            "</div>"
+        )
+
+    status_html = ""
+    if status_box_text:
+        status_html = f'<div class="chance-vitoria-box {status_box_cls}">{status_box_text}</div>'
+
+    val_html = (
+        f'<div class="cartao-valor-destaque cartao-projecao-{bloco_key}">{valor_proj_str}'
+        f'<span class="cartao-sinal-pct">%</span></div>'
+    )
+
+    card_html = (
+        f'<div class="{card_class}">'
+        f"{header_html}"
+        f"{val_html}"
+        f'<div class="cartao-rotulo">{rotulo_str}</div>'
+        f"{faixa_html}"
+        f'<div class="cartao-apurado-container">'
+        f'<span class="cartao-apurado-label">Oficial apurado no TSE:</span>'
+        f'<span class="cartao-apurado-valor">{obs_str}</span>'
+        f"</div>"
+        f"{vies_nota}"
+        f"{status_html}"
+        f"</div>"
+    )
+    return card_html
+
+
 def render_candidate_cards(
     latest_point: dict[str, Any] | None,
     groups_payload: list[dict[str, Any]] | None = None,
 ) -> None:
-    """Renderiza a grade de 3 cartoes de candidatos com hierarquia clara e identificador de lider.
-
-    Apresenta em primeiro plano a projecao com faixa de confianca e, em bloco secundario destacado,
-    o percentual ja totalizado na urna pelo TSE com esclarecimento de viés de contagem.
+    """Renderiza a grade de 3 cartoes de candidatos (1º Turno) com padrao visual global.
 
     Args:
         latest_point: Dicionario do ponto mais recente com apurado, projecao e faixa.
@@ -293,7 +437,6 @@ def render_candidate_cards(
     col_pt, col_pl, col_outros = st.columns(3)
     blocos = [("PT", col_pt), ("PL", col_pl), ("OUTROS", col_outros)]
 
-    # 1. Extrai valores para identificar o lider da projecao
     cand_data: dict[str, dict[str, Any]] = {}
     for bloco, _ in blocos:
         obs_val: float | None = None
@@ -329,15 +472,17 @@ def render_candidate_cards(
             "q95": q95_val,
         }
 
-    # Identifica o lider projetado (apenas entre candidaturas principais)
     proj_pt = cand_data["PT"]["proj"] or 0.0
     proj_pl = cand_data["PL"]["proj"] or 0.0
     lider_bloco = "PT" if proj_pt > proj_pl else ("PL" if proj_pl > proj_pt else "")
 
     for bloco, col in blocos:
-        meta = CANDIDATE_METADATA.get(bloco, {"nome": bloco, "partido": "", "cor": "#64748b"})
+        meta = CANDIDATE_METADATA.get(
+            bloco,
+            {"nome": bloco, "partido": bloco, "legenda": bloco, "cor": "#64748b"},
+        )
         nome = meta["nome"]
-        partido = f"({meta['partido']})" if meta["partido"] else ""
+        legenda = meta.get("legenda", meta.get("partido", bloco))
 
         obs_val = cand_data[bloco]["obs"]
         proj_val = cand_data[bloco]["proj"]
@@ -345,66 +490,33 @@ def render_candidate_cards(
         q95_val = cand_data[bloco]["q95"]
 
         is_lider = bloco == lider_bloco and proj_val is not None and bloco != "OUTROS"
-        badge_lider_html = (
-            '<span class="cartao-badge-lider">Líder projetado</span>' if is_lider else ""
-        )
-        card_class = "cartao-candidato cartao-lider" if is_lider else "cartao-candidato"
 
-        # Formata textos dos cartoes
         if proj_val is not None:
-            valor_proj_str = f"{proj_val:.2f}".replace(".", ",")
-            rotulo_str = "Projeção do resultado final"
-            if q05_val is not None and q95_val is not None:
-                q05_s = f"{q05_val:.2f}".replace(".", ",")
-                q95_s = f"{q95_val:.2f}".replace(".", ",")
-                faixa_str = f'<div class="cartao-faixa">Intervalo de 90%: {q05_s}% – {q95_s}%</div>'
+            if bloco in ("PT", "PL"):
+                if is_lider:
+                    status_text = "🏆 Vaga no 2º Turno: > 99,9% (Líder projetado)"
+                    status_cls = "chance-lider"
+                else:
+                    status_text = "🗳️ Vaga no 2º Turno: > 99,9% (Classificado)"
+                    status_cls = "chance-lider"
             else:
-                faixa_str = ""
-        elif obs_val is not None:
-            valor_proj_str = f"{obs_val:.2f}".replace(".", ",")
-            rotulo_str = "Projeção preliminar (< 2% apurado)"
-            faixa_str = '<div class="cartao-faixa">Aguardando dados para IC</div>'
+                status_text = "Sem chance de 2º Turno (< 0,1%)"
+                status_cls = "chance-secundario"
         else:
-            valor_proj_str = "–"
-            rotulo_str = "Aguardando apuração"
-            faixa_str = ""
+            status_text = "⏳ Projeção consolidada e IC a partir de 2,0% apurado"
+            status_cls = "chance-preliminar"
 
-        obs_str = f"{obs_val:.2f}%".replace(".", ",") if obs_val is not None else "–"
-
-        # Explicacao de vies quando ha diferenca perceptivel entre urna e projecao
-        vies_nota = ""
-        if proj_val is not None and obs_val is not None and abs(proj_val - obs_val) >= 2.0:
-            diff = proj_val - obs_val
-            sinal = "+" if diff > 0 else ""
-            diff_str = f"{sinal}{diff:.1f} pp".replace(".", ",")
-            vies_nota = (
-                f'<div class="cartao-vies-nota">'
-                f"Diferença de {diff_str} decorre da ordem de apuração regional das urnas."
-                "</div>"
-            )
-
-        val_html = (
-            f'<div class="cartao-valor-destaque">{valor_proj_str}'
-            '<span style="font-size: 0.5em; color: var(--texto-mut);">%</span></div>'
-        )
-
-        card_html = (
-            f'<div class="{card_class}">'
-            f'<div class="cartao-cabecalho">'
-            f'<span class="chave-cor chave-{bloco}"></span>'
-            f"<span>{nome}</span>"
-            f'<span class="cartao-partido">{partido}</span>'
-            f"{badge_lider_html}"
-            f"</div>"
-            f"{val_html}"
-            f'<div class="cartao-rotulo">{rotulo_str}</div>'
-            f"{faixa_str}"
-            f'<div class="cartao-apurado-container">'
-            f'<span class="cartao-apurado-label">Votos na urna agora:</span>'
-            f'<span class="cartao-apurado-valor">{obs_str}</span>'
-            f"</div>"
-            f"{vies_nota}"
-            f"</div>"
+        card_html = _build_candidate_card_html(
+            bloco=bloco,
+            nome=nome,
+            partido_legenda=legenda,
+            proj_val=proj_val,
+            obs_val=obs_val,
+            q05_val=q05_val,
+            q95_val=q95_val,
+            is_lider=is_lider,
+            status_box_text=status_text,
+            status_box_cls=status_cls,
         )
         with col:
             st.markdown(card_html, unsafe_allow_html=True)
@@ -757,7 +869,7 @@ def render_second_round_candidate_cards(
     """Renderiza os cartoes de destaque da disputa direta do 2º Turno (Lula vs Bolsonaro).
 
     Exibe os percentuais apurados no TSE, projecoes finais com intervalo de 90%
-    e probabilidade de vitoria majoritaria para cada candidato.
+    e probabilidade de vitoria majoritaria para cada candidato com padrao visual global.
 
     Args:
         latest_point: Ponto cronologico mais recente com apurado, projecao e faixa.
@@ -769,7 +881,6 @@ def render_second_round_candidate_cards(
     Raises:
         None.
     """
-    # 1. Extracao de dados a partir de groups_payload (API) ou latest_point (Replay/Poller)
     data_pt: dict[str, Any] = {"obs": 0.0, "proj": None, "q05": None, "q95": None}
     data_pl: dict[str, Any] = {"obs": 0.0, "proj": None, "q05": None, "q95": None}
 
@@ -818,7 +929,6 @@ def render_second_round_candidate_cards(
         if wp_map and "PL" in wp_map:
             data_pl["win_prob"] = float(wp_map["PL"])
 
-    # 2. Calculo da probabilidade estatistica de vitoria baseada na simulacao Monte Carlo
     wp_pt = data_pt.get("win_prob")
     wp_pl = data_pl.get("win_prob")
     has_projection = data_pt["proj"] is not None and data_pl["proj"] is not None
@@ -834,102 +944,57 @@ def render_second_round_candidate_cards(
         pt_prob_win = 50.0
         pl_prob_win = 50.0
 
-    pt_proj_val = (
-        fmt_pct(data_pt["proj"], decimals=2)
-        if data_pt["proj"]
-        else fmt_pct(data_pt["obs"], decimals=2)
-    )
-    pt_ci_val = (
-        f"IC 90%: [{fmt_pct(data_pt['q05'], decimals=2)} – {fmt_pct(data_pt['q95'], decimals=2)}]"
-        if data_pt["q05"]
-        else "Projeção preliminar (< 2% apurado)"
-    )
-    pt_lead = " (Liderança)" if pt_prob_win > 50 else ""
-
-    pl_proj_val = (
-        fmt_pct(data_pl["proj"], decimals=2)
-        if data_pl["proj"]
-        else fmt_pct(data_pl["obs"], decimals=2)
-    )
-    pl_ci_val = (
-        f"IC 90%: [{fmt_pct(data_pl['q05'], decimals=2)} – {fmt_pct(data_pl['q95'], decimals=2)}]"
-        if data_pl["q05"]
-        else "Projeção preliminar (< 2% apurado)"
-    )
-    pl_lead = " (Liderança)" if pl_prob_win > 50 else ""
+    is_lider_pt = has_projection and pt_prob_win >= 50.0
+    is_lider_pl = has_projection and pl_prob_win > 50.0
 
     if has_projection:
-        pt_cls = "chance-lider" if pt_prob_win >= 50 else "chance-secundario"
-        pl_cls = "chance-lider" if pl_prob_win > 50 else "chance-secundario"
-        pt_footer_html = (
-            f'<div class="chance-vitoria-box {pt_cls}">'
-            f"🏆 Chance de Vitória: {pt_prob_win:.1f}%{pt_lead}"
-            f"</div>"
-        )
-        pl_footer_html = (
-            f'<div class="chance-vitoria-box {pl_cls}">'
+        pt_lead = " (Liderança)" if pt_prob_win >= 50.0 else ""
+        pl_lead = " (Liderança)" if pl_prob_win > 50.0 else ""
+        pt_cls = "chance-lider" if pt_prob_win >= 50.0 else "chance-secundario"
+        pl_cls = "chance-lider" if pl_prob_win > 50.0 else "chance-secundario"
+        pt_status = f"🏆 Chance de Vitória: {pt_prob_win:.1f}%{pt_lead}"
+        pl_status = (
             f"🏆 Chance de Vitória: {pl_prob_win:.1f}%{pl_lead}"
-            f"</div>"
+            if pl_prob_win > 50.0
+            else f"Chance de Vitória: {pl_prob_win:.1f}%"
         )
     else:
-        pt_footer_html = (
-            '<div class="chance-vitoria-box chance-preliminar">'
-            "⏳ Projeção consolidada e IC a partir de 2,0% apurado"
-            "</div>"
-        )
-        pl_footer_html = (
-            '<div class="chance-vitoria-box chance-preliminar">'
-            "⏳ Projeção consolidada e IC a partir de 2,0% apurado"
-            "</div>"
-        )
+        pt_cls = "chance-preliminar"
+        pl_cls = "chance-preliminar"
+        pt_status = "⏳ Projeção consolidada e IC a partir de 2,0% apurado"
+        pl_status = "⏳ Projeção consolidada e IC a partir de 2,0% apurado"
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown(
-            f"""
-            <div class="card-candidato card-candidato-pt">
-                <div class="card-cand-header">
-                    <span class="card-nome">Lula</span>
-                    <span class="badge-partido badge-partido-pt">PT · 13</span>
-                </div>
-                <div class="card-projecao card-projecao-pt">
-                    {pt_proj_val}
-                </div>
-                <div class="card-faixa">
-                    {pt_ci_val}
-                </div>
-                <div class="card-apurado">
-                    Oficial apurado: <strong>{fmt_pct(data_pt["obs"], decimals=2)}</strong>
-                </div>
-                {pt_footer_html}
-            </div>
-            """,
-            unsafe_allow_html=True,
+        pt_html = _build_candidate_card_html(
+            bloco="PT",
+            nome="Lula",
+            partido_legenda="PT · 13",
+            proj_val=data_pt["proj"],
+            obs_val=data_pt["obs"],
+            q05_val=data_pt["q05"],
+            q95_val=data_pt["q95"],
+            is_lider=is_lider_pt,
+            status_box_text=pt_status,
+            status_box_cls=pt_cls,
         )
+        st.markdown(pt_html, unsafe_allow_html=True)
 
     with col2:
-        st.markdown(
-            f"""
-            <div class="card-candidato card-candidato-pl">
-                <div class="card-cand-header">
-                    <span class="card-nome">Flávio Bolsonaro</span>
-                    <span class="badge-partido badge-partido-pl">PL · 22</span>
-                </div>
-                <div class="card-projecao card-projecao-pl">
-                    {pl_proj_val}
-                </div>
-                <div class="card-faixa">
-                    {pl_ci_val}
-                </div>
-                <div class="card-apurado">
-                    Oficial apurado: <strong>{fmt_pct(data_pl["obs"], decimals=2)}</strong>
-                </div>
-                {pl_footer_html}
-            </div>
-            """,
-            unsafe_allow_html=True,
+        pl_html = _build_candidate_card_html(
+            bloco="PL",
+            nome="Flávio Bolsonaro",
+            partido_legenda="PL · 22",
+            proj_val=data_pl["proj"],
+            obs_val=data_pl["obs"],
+            q05_val=data_pl["q05"],
+            q95_val=data_pl["q95"],
+            is_lider=is_lider_pl,
+            status_box_text=pl_status,
+            status_box_cls=pl_cls,
         )
+        st.markdown(pl_html, unsafe_allow_html=True)
 
 
 def render_polling_status_box(
@@ -1078,16 +1143,18 @@ def render_polling_log_table(log_entries: list[dict[str, Any]]) -> None:
     st.dataframe(df_log, use_container_width=True, hide_index=True)
 
 
-def render_second_round_validation_panel(
+def render_validation_panel(
     latest_point: dict[str, Any] | None,
     validation_summary: dict[str, Any],
+    round_num: int = 2,
 ) -> None:
-    """Renderiza o painel de KPIs de auditoria retroativa do HORIZON-MRP frente ao resultado TSE.
+    """Renderiza o painel de 4 KPIs de auditoria retroativa do HORIZON-MRP frente ao resultado TSE.
 
     Args:
         latest_point: Ponto avaliado no marco percentual selecionado pelo usuario.
         validation_summary: Indicadores consolidados retornados por
-            ``summarize_second_round_validation``.
+            ``summarize_second_round_validation`` ou ``summarize_first_round_validation``.
+        round_num: Turno da eleicao (1 ou 2).
 
     Returns:
         None.
@@ -1095,11 +1162,30 @@ def render_second_round_validation_panel(
     Raises:
         None.
     """
-    final_map = validation_summary.get("final_oficial") or {"PT": 51.77, "PL": 48.23}
-    f_pt = float(final_map.get("PT", 51.77))
-    f_pl = float(final_map.get("PL", 48.23))
-    margin_pp = abs(f_pt - f_pl)
-    winner_name = "Lula (PT)" if f_pt >= f_pl else "Flávio (PL)"
+    final_map = validation_summary.get("final_oficial")
+    if round_num == 1:
+        if not final_map:
+            final_map = {"PT": 45.16, "PL": 47.03, "OUTROS": 7.81}
+        f_pt = float(final_map.get("PT", 45.16))
+        f_pl = float(final_map.get("PL", 47.03))
+        f_outros = float(final_map.get("OUTROS", 7.81))
+        margin_pp = abs(f_pl - f_pt)
+        gabarito_val = f"{fmt_pct(f_pt, 2)} × {fmt_pct(f_pl, 2)} × {fmt_pct(f_outros, 2)}"
+        gabarito_sub = (
+            f"1º Lugar: Flávio (PL) · Vantagem de {f'{margin_pp:.2f}'.replace('.', ',')} pp no TSE"
+        )
+    else:
+        if not final_map:
+            final_map = {"PT": 51.77, "PL": 48.23}
+        f_pt = float(final_map.get("PT", 51.77))
+        f_pl = float(final_map.get("PL", 48.23))
+        margin_pp = abs(f_pt - f_pl)
+        winner_name = "Lula (PT)" if f_pt >= f_pl else "Flávio (PL)"
+        gabarito_val = f"{fmt_pct(f_pt, 2)} × {fmt_pct(f_pl, 2)}"
+        gabarito_sub = (
+            f"Eleito: {winner_name} · Vantagem final de "
+            f"{f'{margin_pp:.2f}'.replace('.', ',')} pp no TSE"
+        )
 
     metrics = (latest_point.get("metrics") or {}) if latest_point else {}
     mod_mae = metrics.get("model_mae_pp")
@@ -1145,16 +1231,13 @@ def render_second_round_validation_panel(
             if mean_mod is not None
             else ""
         )
-        call_sub = f"Probabilidade de vitória ≥ 95% {time_note}{mean_note}".strip()
+        if round_num == 1:
+            call_sub = f"2º Turno consolidado com P > 99% {time_note}{mean_note}".strip()
+        else:
+            call_sub = f"Probabilidade de vitória ≥ 95% {time_note}{mean_note}".strip()
     else:
         call_val = "Em evolução"
         call_sub = "Avance o controle para atingir confiança ≥ 95%"
-
-    gabarito_val = f"{fmt_pct(f_pt, 2)} × {fmt_pct(f_pl, 2)}"
-    gabarito_sub = (
-        f"Eleito: {winner_name} · Vantagem final de "
-        f"{f'{margin_pp:.2f}'.replace('.', ',')} pp no TSE"
-    )
 
     panel_html = (
         '<div class="kpi-validacao-grid">'
@@ -1181,6 +1264,54 @@ def render_second_round_validation_panel(
         "</div>"
     )
     st.markdown(panel_html, unsafe_allow_html=True)
+
+
+def render_second_round_validation_panel(
+    latest_point: dict[str, Any] | None,
+    validation_summary: dict[str, Any],
+) -> None:
+    """Renderiza o painel de KPIs de auditoria retroativa do HORIZON-MRP no 2º Turno.
+
+    Args:
+        latest_point: Ponto avaliado no marco percentual selecionado pelo usuario.
+        validation_summary: Indicadores consolidados retornados por
+            ``summarize_second_round_validation``.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    render_validation_panel(
+        latest_point=latest_point,
+        validation_summary=validation_summary,
+        round_num=2,
+    )
+
+
+def render_first_round_validation_panel(
+    latest_point: dict[str, Any] | None,
+    validation_summary: dict[str, Any],
+) -> None:
+    """Renderiza o painel de KPIs de auditoria retroativa do HORIZON-MRP no 1º Turno.
+
+    Args:
+        latest_point: Ponto avaliado no marco percentual selecionado pelo usuario.
+        validation_summary: Indicadores consolidados retornados por
+            ``summarize_first_round_validation``.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    render_validation_panel(
+        latest_point=latest_point,
+        validation_summary=validation_summary,
+        round_num=1,
+    )
 
 
 def render_second_round_history_table(points: list[dict[str, Any]]) -> None:

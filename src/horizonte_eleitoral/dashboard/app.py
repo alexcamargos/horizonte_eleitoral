@@ -24,6 +24,7 @@ from horizonte_eleitoral.dashboard.components import (
     render_candidate_cards,
     render_chart_guide,
     render_editorial_header,
+    render_first_round_validation_panel,
     render_general_model_documentation,
     render_history_table,
     render_model_card_expander,
@@ -48,6 +49,7 @@ from horizonte_eleitoral.dashboard.replay import (
     load_replay_catalog,
     load_second_round_validation_catalog,
     refresh_stale_second_round_points,
+    summarize_first_round_validation,
 )
 from horizonte_eleitoral.dashboard.styles import get_custom_css
 from horizonte_eleitoral.ingestion.client import TSEAsyncClient
@@ -113,7 +115,7 @@ def _render_first_round_tab() -> None:
         curr = float(st.session_state.get("slider_1t", 10.0))
         st.session_state.slider_1t = max(1.0, min(100.0, round(curr + delta)))
 
-    col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
+    col_btn1, col_btn2, col_btn3, col_btn4, col_btn5 = st.columns(5)
     col_btn1.button(
         "⏪ Início (1%)",
         use_container_width=True,
@@ -122,20 +124,27 @@ def _render_first_round_tab() -> None:
         args=(1.0,),
     )
     col_btn2.button(
+        "🎯 10% (Padrão)",
+        use_container_width=True,
+        key="btn_1t_10",
+        on_click=_set_wave_1t,
+        args=(10.0,),
+    )
+    col_btn3.button(
         "◀️ -10%",
         use_container_width=True,
         key="btn_1t_m10",
         on_click=_step_wave_1t,
         args=(-10.0,),
     )
-    col_btn3.button(
+    col_btn4.button(
         "▶️ +10%",
         use_container_width=True,
         key="btn_1t_p10",
         on_click=_step_wave_1t,
         args=(10.0,),
     )
-    col_btn4.button(
+    col_btn5.button(
         "⏩ Fim (100%)",
         use_container_width=True,
         key="btn_1t_100",
@@ -144,7 +153,7 @@ def _render_first_round_tab() -> None:
     )
 
     current_wave_pct = st.slider(
-        "Progresso do Eleitorado Apurado (%):",
+        "Progresso do Eleitorado Apurado no 1º Turno (%):",
         min_value=1.0,
         max_value=100.0,
         step=1.0,
@@ -158,6 +167,7 @@ def _render_first_round_tab() -> None:
         catalog = get_replay_catalog()
         points = generate_replay_timeline(catalog=catalog, current_wave=current_wave)
         full_series = generate_replay_timeline(catalog=catalog, current_wave=1.0)
+        val_summary_1t = summarize_first_round_validation(full_series)
         states_data = generate_state_projections(catalog=catalog, wave=current_wave)
 
     latest_point = points[-1] if points else None
@@ -165,17 +175,24 @@ def _render_first_round_tab() -> None:
     updated_str = latest_point["t"] if latest_point else "17:00"
     prob_2t = latest_point.get("p_2turno") if latest_point else None
 
-    # Cabecalho Editorial
+    # 1. Cabecalho Editorial do 1o Turno
     render_editorial_header(
         electorate_pct=electorate_pct,
         updated_str=updated_str,
         environment="replay",
+        round_num=1,
     )
 
-    # Cartoes de Candidatos
+    # 2. Cartoes de Candidatos padronizados
     render_candidate_cards(latest_point=latest_point)
 
-    # Probabilidade de 2o Turno
+    # 3. Painel de Auditoria e Validacao Historica Padronizado (4 KPIs)
+    render_first_round_validation_panel(
+        latest_point=latest_point,
+        validation_summary=val_summary_1t,
+    )
+
+    # 4. Probabilidade de 2o Turno
     render_p2t_banner(prob_2t=prob_2t)
 
     # Grafico Interativo Duplo em Altair

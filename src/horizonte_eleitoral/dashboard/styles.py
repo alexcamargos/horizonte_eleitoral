@@ -36,6 +36,8 @@ def get_custom_css() -> str:
   --badge-fg-pl: #1e40af;
   --badge-bg-lider: #fef3c7;
   --badge-fg-lider: #92400e;
+  --badge-bg-outros: #f1f5f9;
+  --badge-fg-outros: #475569;
   --box-win-lider-bg: #dcfce7;
   --box-win-lider-fg: #166534;
   --box-win-sec-bg: #f1f5f9;
@@ -63,6 +65,8 @@ def get_custom_css() -> str:
     --badge-fg-pl: #93c5fd;
     --badge-bg-lider: rgba(245, 158, 11, 0.2);
     --badge-fg-lider: #fde047;
+    --badge-bg-outros: rgba(148, 163, 184, 0.18);
+    --badge-fg-outros: #cbd5e1;
     --box-win-lider-bg: rgba(34, 197, 94, 0.16);
     --box-win-lider-fg: #86efac;
     --box-win-sec-bg: rgba(148, 163, 184, 0.12);
@@ -91,6 +95,8 @@ def get_custom_css() -> str:
   --badge-fg-pl: #93c5fd;
   --badge-bg-lider: rgba(245, 158, 11, 0.2);
   --badge-fg-lider: #fde047;
+  --badge-bg-outros: rgba(148, 163, 184, 0.18);
+  --badge-fg-outros: #cbd5e1;
   --box-win-lider-bg: rgba(34, 197, 94, 0.16);
   --box-win-lider-fg: #86efac;
   --box-win-sec-bg: rgba(148, 163, 184, 0.12);
@@ -223,34 +229,65 @@ def get_custom_css() -> str:
   }
 }
 
-/* Cartoes de Candidatos */
+/* Cartoes de Candidatos (Padrao Global 1o e 2o Turno) */
 .cartao-candidato {
   background: var(--fundo-card);
   border: 1px solid var(--borda-card);
   border-radius: 12px;
-  padding: 16px 18px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  padding: 16px 20px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
   margin-bottom: 12px;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+  display: flex;
+  flex-direction: column;
 }
 
 .cartao-candidato:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.cartao-candidato-pt {
+  border-left: 5px solid var(--s-PT);
+}
+
+.cartao-candidato-pl {
+  border-left: 5px solid var(--s-PL);
+}
+
+.cartao-candidato-outros {
+  border-left: 5px solid var(--s-OUTROS);
 }
 
 .cartao-candidato.cartao-lider {
-  border-color: #3b82f6;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+  border-top-color: rgba(59, 130, 246, 0.45);
+  border-right-color: rgba(59, 130, 246, 0.45);
+  border-bottom-color: rgba(59, 130, 246, 0.45);
+  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.18);
 }
 
 .cartao-cabecalho {
   display: flex;
+  justify-content: space-between;
   align-items: center;
   gap: 8px;
-  font-size: 0.98rem;
-  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.cartao-nome {
+  font-size: clamp(1.0rem, 1.4vw, 1.15rem);
+  font-weight: 750;
   color: var(--texto-card);
+  letter-spacing: -0.01em;
+}
+
+.cartao-badges-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .chave-cor {
@@ -272,33 +309,78 @@ def get_custom_css() -> str:
   font-weight: 500;
 }
 
+.badge-partido {
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 999px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.badge-partido-pt {
+  background: var(--badge-bg-pt);
+  color: var(--badge-fg-pt);
+  border: 1px solid rgba(227, 73, 72, 0.3);
+}
+
+.badge-partido-pl {
+  background: var(--badge-bg-pl);
+  color: var(--badge-fg-pl);
+  border: 1px solid rgba(42, 120, 214, 0.3);
+}
+
+.badge-partido-outros {
+  background: var(--badge-bg-outros);
+  color: var(--badge-fg-outros);
+  border: 1px solid rgba(138, 137, 131, 0.3);
+}
+
 .cartao-badge-lider {
-  margin-left: auto;
   font-size: 0.70rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 2px 7px;
+  padding: 2px 8px;
   border-radius: 999px;
   background-color: var(--badge-bg-lider);
   color: var(--badge-fg-lider);
   border: 1px solid rgba(245, 158, 11, 0.35);
+  white-space: nowrap;
 }
 
 .cartao-valor-destaque {
-  font-size: clamp(2.1rem, 3.8vw, 2.9rem);
-  font-weight: 750;
+  font-size: clamp(2.1rem, 3.6vw, 2.85rem);
+  font-weight: 800;
   line-height: 1.05;
-  margin: 8px 0 2px 0;
+  margin: 6px 0 2px 0;
   letter-spacing: -0.02em;
-  color: var(--texto-card);
+}
+
+.cartao-projecao-pt {
+  color: var(--s-PT);
+}
+
+.cartao-projecao-pl {
+  color: var(--s-PL);
+}
+
+.cartao-projecao-outros {
+  color: var(--s-OUTROS);
+}
+
+.cartao-sinal-pct {
+  font-size: 0.52em;
+  font-weight: 600;
+  opacity: 0.75;
+  margin-left: 2px;
 }
 
 .cartao-rotulo {
-  font-size: 0.80rem;
-  font-weight: 600;
+  font-size: 0.75rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
   color: var(--texto-mut);
   margin-bottom: 6px;
 }
@@ -308,7 +390,7 @@ def get_custom_css() -> str:
   font-weight: 600;
   color: var(--box-faixa-fg);
   background-color: var(--box-faixa-bg);
-  padding: 2px 8px;
+  padding: 3px 9px;
   border-radius: 6px;
   display: inline-block;
   margin-bottom: 6px;
@@ -336,10 +418,11 @@ def get_custom_css() -> str:
 }
 
 .cartao-vies-nota {
-  font-size: 0.72rem;
+  font-size: 0.73rem;
   color: var(--texto-mut);
-  margin-top: 2px;
-  line-height: 1.3;
+  margin-top: 4px;
+  line-height: 1.35;
+  min-height: 2.3em;
 }
 
 /* Banner Estruturado de Probabilidade de 2o Turno */

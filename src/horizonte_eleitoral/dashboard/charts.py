@@ -1011,6 +1011,9 @@ def build_second_round_chart(
     f_pt_val = float(final_result["PT"]) if has_final and final_result else None
     f_pl_val = float(final_result["PL"]) if has_final and final_result else None
 
+    pt_final_y: float | None = None
+    pl_final_y: float | None = None
+
     # Rotulos e Marcadores Terminais em 100%
     if proj_map and ("PT" in proj_map or "PL" in proj_map):
         term_rows: list[dict[str, Any]] = []
@@ -1032,13 +1035,13 @@ def build_second_round_chart(
         if pt_is_leader:
             pt_proj_y = base_pt + (1.0 if has_final else 1.2)
             pl_proj_y = base_pl - (1.0 if has_final else 1.2)
-            pt_final_y = base_pt + 2.6
-            pl_final_y = base_pl - 2.6
+            pt_final_y = base_pt + 2.8
+            pl_final_y = base_pl - 2.8
         else:
             pt_proj_y = base_pt - (1.0 if has_final else 1.2)
             pl_proj_y = base_pl + (1.0 if has_final else 1.2)
-            pt_final_y = base_pt - 2.6
-            pl_final_y = base_pl + 2.6
+            pt_final_y = base_pt - 2.8
+            pl_final_y = base_pl + 2.8
 
         for bloco in ("PT", "PL"):
             if bloco in proj_map and proj_map[bloco] is not None:
@@ -1121,12 +1124,12 @@ def build_second_round_chart(
     if has_final and final_result and f_pt_val is not None and f_pl_val is not None:
         pt_f_y = (
             pt_final_y
-            if "pt_final_y" in locals()
+            if pt_final_y is not None
             else (f_pt_val + 1.6 if f_pt_val >= f_pl_val else f_pt_val - 1.6)
         )
         pl_f_y = (
             pl_final_y
-            if "pl_final_y" in locals()
+            if pl_final_y is not None
             else (f_pl_val - 1.6 if f_pt_val >= f_pl_val else f_pl_val + 1.6)
         )
 

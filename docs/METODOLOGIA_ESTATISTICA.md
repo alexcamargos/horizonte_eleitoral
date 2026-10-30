@@ -120,7 +120,7 @@ $$\lambda_u = \frac{N_u^{\text{obs}}}{N_u^{\text{obs}} + K_{\text{uf}}}, \quad \
 Se uma UF ainda não possui seções apuradas no corte avaliado ($N_u^{\text{obs}} = 0$), herda deterministicamente $\boldsymbol{\delta}_{\text{reg}(u)}$.
 
 #### Nível 4: Nível Municipal e Elasticidade Histórica (Opcional)
-O modelo preserva compatibilidade com o índice de elasticidade municipal multi-ciclo 2018–2022 (`MunicipalElasticityIndex`, salvo em `data/real/elasticity_2018_2022.parquet`):
+O modelo preserva compatibilidade com o índice de elasticidade municipal multi-ciclo 2018–2022 (`MunicipalElasticityIndex`, salvo em `data/final/elasticity_2018_2022.parquet`):
 $$\lambda_m = \frac{N_m^{\text{obs}}}{N_m^{\text{obs}} + K_{\text{eff}}(m)}, \quad K_{\text{eff}}(m) = \frac{K_{\text{muni}}}{1 + s \cdot \text{vol}_m}$$
 *Constatação empírica:* Nos marcos precoces (1% a 10%), a estimação de 5.570 parâmetros municipais isolados injeta ruído amostral devido à heterogeneidade espacial intra-municipal das primeiras urnas abertas. Por padrão, a projeção ativa adota a ancoragem robusta no estrato estadual (Nível 3), mantendo o Nível 4 disponível sob demanda via hiperparâmetro `shrinkage_muni`.
 

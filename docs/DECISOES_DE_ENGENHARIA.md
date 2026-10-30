@@ -85,11 +85,11 @@ Aprovado e Implementado.
 A base eleitoral brasileira de 2026 possui **499.206 seções eleitorais**. Nos ensaios iniciais, carregar essa base via arquivos CSV e iterar sobre listas de dicionários Python consumia mais de 45 segundos por marco e demandava mais de 3 GB de memória RAM.
 
 ### Decisão
-1. Criação do pipeline de conversão e exportação para o formato colunar **Apache Parquet** (`data/real/catalog_2026.parquet` e `data/real/elasticity_2018_2022.parquet`).
+1. Criação do pipeline de conversão e exportação para o formato colunar **Apache Parquet** na camada analítica (`data/final/catalog_2026.parquet` e `data/final/elasticity_2018_2022.parquet`).
 2. O catálogo consolida chaves de seção, dados demográficos, bases históricas de 2022 e votos observados em formato tipado e comprimido (Snappy).
 3. Integração com a biblioteca colunar **DuckDB**, permitindo executar consultas analíticas SQL em memória com alta velocidade:
    ```powershell
-   uv run horizonte-eleitoral --query-sql "SELECT state, count(*), sum(electorate) FROM 'data/real/catalog_2026.parquet' GROUP BY state"
+   uv run horizonte-eleitoral --query-sql "SELECT state, count(*), sum(electorate) FROM 'data/final/catalog_2026.parquet' GROUP BY state"
    ```
 4. Adoção do Parquet como formato padrão para o replay do Streamlit e para as rotinas de backtesting.
 

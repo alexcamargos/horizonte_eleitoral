@@ -674,7 +674,12 @@ def _render_real_time_tab() -> None:
 
         st.markdown("#### Evolução da Apuração e Projeção · 2º Turno")
         render_chart_guide(round_num=2)
-        chart_2t = build_second_round_chart(points=active_points)
+        active_wave_live = float(latest_live_point["x"]) if latest_live_point else None
+        chart_2t = build_second_round_chart(
+            points=active_points,
+            active_wave=active_wave_live,
+            extend_to_end=True,
+        )
         st.altair_chart(chart_2t, use_container_width=True, theme="streamlit")
 
         with st.expander("📊 Ver histórico de ondas da apuração do 2º Turno"):
@@ -835,9 +840,32 @@ def _render_second_round_validation_tab() -> None:
     # 4. Grafico Principal de Evolucao (Apurado TSE vs Projecao HORIZON-MRP vs Gabarito Final)
     st.markdown("#### Evolução da Apuração Oficial e Projeção Final · 2º Turno")
     render_chart_guide(round_num=2)
+
+    col_v2t, _ = st.columns([2.2, 1.8])
+    with col_v2t:
+        view_opt_2t = st.radio(
+            "Extensão da visualização do 2º Turno:",
+            options=[
+                "Projeção estendida até o final (100%)",
+                "Série Completa de Auditoria (2% a 100%)",
+            ],
+            index=0,
+            horizontal=True,
+            key="radio_2t_view_extent",
+            help=(
+                "Projeção estendida exibe a trajetória e o resultado final projetado (100%) "
+                "a partir do marco atual. Série Completa exibe a convergência de todos os marcos."
+            ),
+        )
+
+    is_full_2t = "Completa" in view_opt_2t
+    chart_points_2t = full_series_2t if is_full_2t else points_2t
+
     chart_main = build_second_round_chart(
-        points=points_2t,
+        points=chart_points_2t,
+        active_wave=current_wave_pct,
         final_result=val_summary.get("final_oficial"),
+        extend_to_end=not is_full_2t,
     )
     st.altair_chart(chart_main, use_container_width=True, theme="streamlit")
 

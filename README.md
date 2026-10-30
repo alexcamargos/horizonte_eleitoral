@@ -91,13 +91,13 @@ uv run horizonte-eleitoral --simulate-2026-2t-pct 50.0
 ```
 
 ### Consultas Analíticas Diretas em SQL via DuckDB
-O catálogo analítico de 499.206 seções (`data/real/catalog_2026.parquet`) pode ser consultado via SQL diretamente pelo terminal:
+O catálogo analítico de 499.206 seções (`data/final/catalog_2026.parquet`) pode ser consultado via SQL diretamente pelo terminal:
 ```powershell
 # Contagem de secoes e eleitorado total por estado
-uv run horizonte-eleitoral --query-sql "SELECT state, count(*) AS secoes, sum(electorate) AS eleitores FROM 'data/real/catalog_2026.parquet' GROUP BY state ORDER BY eleitores DESC LIMIT 5"
+uv run horizonte-eleitoral --query-sql "SELECT state, count(*) AS secoes, sum(electorate) AS eleitores FROM 'data/final/catalog_2026.parquet' GROUP BY state ORDER BY eleitores DESC LIMIT 5"
 
 # Top 5 municipios com maior deslocamento de votos
-uv run horizonte-eleitoral --query-sql "SELECT municipality_key, pt_swing, pl_swing, volatility FROM 'data/real/elasticity_2018_2022.parquet' ORDER BY volatility DESC LIMIT 5"
+uv run horizonte-eleitoral --query-sql "SELECT municipality_key, pt_swing, pl_swing, volatility FROM 'data/final/elasticity_2018_2022.parquet' ORDER BY volatility DESC LIMIT 5"
 ```
 
 ### Comparativo Head-to-Head entre Modelo V1 (Legado) e HORIZON-MRP (V2)
@@ -172,7 +172,10 @@ horizonte_eleitoral/
 │   └── fixtures/              # Dados de teste determinísticos para execução sem rede
 │
 ├── scripts/                   # Utilitários de consolidação e pré-computação de dados
-└── data/                      # Cofre local de dados e arquivos Parquet analíticos
+└── data/                      # Sistema de dados estruturado em 3 camadas (raw / norm / final)
+    ├── raw/                   # Dados brutos imutáveis (ZIPs oficiais do TSE e cofre de auditoria)
+    ├── norm/                  # Dados intermediários normalizados (CSVs estruturados)
+    └── final/                 # Artefatos analíticos de produção (Parquet e JSONs de checkpoints)
 ```
 
 ---

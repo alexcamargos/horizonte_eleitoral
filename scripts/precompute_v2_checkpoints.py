@@ -5,19 +5,21 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from horizonte_eleitoral.config import get_final_data_dir
 from horizonte_eleitoral.dashboard.replay import DEFAULT_CHECKPOINTS, load_replay_catalog
 from horizonte_eleitoral.simulation.election_night_runner import simulate_2026_real_checkpoint
 
 
 def precompute_checkpoints_v2(
-    output_path: Path = Path("data/real/checkpoints_2026.json"),
+    output_path: Path | None = None,
     num_draws: int = 200,
     seed: int = 42,
 ) -> None:
     """Computa os marcos padronizados utilizando o Modelo V2 com elasticidade 2018-2022.
 
     Args:
-        output_path: Caminho para gravacao do arquivo JSON.
+        output_path: Caminho para gravacao do arquivo JSON. Se None,
+            grava em data/final/checkpoints_2026.json.
         num_draws: Quantidade de repeticoes Monte Carlo por marco.
         seed: Semente pseudoaleatoria para reproducibilidade.
 
@@ -27,6 +29,8 @@ def precompute_checkpoints_v2(
     Raises:
         FileNotFoundError: Se o catalogo de secoes de 2026 nao for localizado.
     """
+    if output_path is None:
+        output_path = get_final_data_dir() / "checkpoints_2026.json"
     print("Carregando catalogo completo de 2026 para precomputacao com Modelo V2...")
     catalog = load_replay_catalog(limit_sections=None)
     print(f"Catalogo carregado ({len(catalog)} secoes). Processando marcos V2...")

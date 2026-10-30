@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from horizonte_eleitoral.config import get_real_data_dir
 from horizonte_eleitoral.domain.enums import GeographicScope
 from horizonte_eleitoral.ingestion.real_data_loader import RealDataLoader
 from horizonte_eleitoral.models.base import SectionObservation
@@ -90,8 +91,19 @@ DEFAULT_STATE_POLLS: dict[str, dict[str, float]] = {
     "TO": {"PT": 51.5, "PL": 42.8, "OUTROS": 5.7},
 }
 
-_CHECKPOINTS_FILE = Path("data/real/checkpoints_2026.json")
-_CHECKPOINTS_2T_FILE = Path("data/real/checkpoints_2026_2t.json")
+
+def _get_checkpoints_file() -> Path:
+    """Retorna o caminho canonico do arquivo de checkpoints do 1º Turno."""
+    return get_real_data_dir() / "checkpoints_2026.json"
+
+
+def _get_checkpoints_2t_file() -> Path:
+    """Retorna o caminho canonico do arquivo de checkpoints do 2º Turno."""
+    return get_real_data_dir() / "checkpoints_2026_2t.json"
+
+
+_CHECKPOINTS_FILE = _get_checkpoints_file()
+_CHECKPOINTS_2T_FILE = _get_checkpoints_2t_file()
 _PRECOMPUTED_CHECKPOINTS: dict[str, dict[str, Any]] | None = None
 _PRECOMPUTED_CHECKPOINTS_2T: dict[str, dict[str, Any]] | None = None
 _CATALOG_CACHE: dict[int | None, list[dict[str, Any]]] = {}
@@ -113,9 +125,10 @@ def _load_precomputed_checkpoints() -> dict[str, dict[str, Any]]:
     global _PRECOMPUTED_CHECKPOINTS
     if _PRECOMPUTED_CHECKPOINTS is not None:
         return _PRECOMPUTED_CHECKPOINTS
-    if _CHECKPOINTS_FILE.exists():
+    ck_file = _get_checkpoints_file()
+    if ck_file.exists():
         try:
-            with open(_CHECKPOINTS_FILE, encoding="utf-8") as f:
+            with open(ck_file, encoding="utf-8") as f:
                 _PRECOMPUTED_CHECKPOINTS = json.load(f)
                 return _PRECOMPUTED_CHECKPOINTS
         except Exception:
@@ -125,7 +138,7 @@ def _load_precomputed_checkpoints() -> dict[str, dict[str, Any]]:
 
 
 def load_replay_catalog(limit_sections: int | None = None) -> list[dict[str, Any]]:
-    """Carrega o catalogo de secoes reais para a reproducao da apuracao.
+    """Carrega o catalogo de secoes reais para a reproducao da apuracao do 1º Turno.
 
     Args:
         limit_sections: Limite maximo opcional de secoes a carregar.
@@ -141,7 +154,7 @@ def load_replay_catalog(limit_sections: int | None = None) -> list[dict[str, Any
         return _CATALOG_CACHE[limit_sections]
 
     loader = RealDataLoader()
-    parquet_path = Path("data/real/catalog_2026.parquet")
+    parquet_path = get_real_data_dir() / "catalog_2026.parquet"
     if parquet_path.exists():
         catalog = loader.load_catalog_parquet(parquet_path, limit_rows=limit_sections)
         _CATALOG_CACHE[limit_sections] = catalog
@@ -156,7 +169,9 @@ def load_replay_catalog(limit_sections: int | None = None) -> list[dict[str, Any
         _CATALOG_CACHE[limit_sections] = catalog
         return catalog
 
-    raise FileNotFoundError("Nenhum arquivo de catalogo encontrado em data/real ou fixtures.")
+    raise FileNotFoundError(
+        f"Nenhum arquivo de catalogo encontrado em '{get_real_data_dir()}' ou fixtures."
+    )
 
 
 def build_replay_point(
@@ -882,7 +897,7 @@ def build_live_replay_point(
     round_num: int = 2,
     num_draws: int = 200,
 ) -> dict[str, Any]:
-    """Gera um ponto simulado da apuracao oficial para o 1º ou 2º Turno.
+    """Gera um ponto de apuracao oficial para o 1º ou 2º Turno a partir dos dados reais do TSE.
 
     Args:
         catalog: Catalogo de secoes reais.
@@ -891,13 +906,22 @@ def build_live_replay_point(
         num_draws: Quantidade de sorteios Monte Carlo.
 
     Returns:
-        Dicionario com a estrutura de ponto ao vivo simulado.
+        Dicionario com a estrutura de ponto ao vivo da apuracao oficial.
 
     Raises:
         None.
     """
     if round_num == 2:
-        return build_second_round_replay_point(catalog=catalog, wave=wave, num_draws=num_draws)
+        cat_2t = (
+            catalog
+            if catalog and any(s.get("round") == 2 for s in catalog[:5])
+            else load_second_round_validation_catalog()
+        )
+        return build_second_round_validation_point(
+            catalog_2t=cat_2t,
+            wave=wave,
+            num_draws=num_draws,
+        )
 
     points = generate_replay_timeline(catalog=catalog, current_wave=wave)
     if points:
@@ -1032,9 +1056,10 @@ def _load_precomputed_second_round_checkpoints() -> dict[str, dict[str, Any]]:
     global _PRECOMPUTED_CHECKPOINTS_2T
     if _PRECOMPUTED_CHECKPOINTS_2T is not None:
         return _PRECOMPUTED_CHECKPOINTS_2T
-    if _CHECKPOINTS_2T_FILE.exists():
+    ck_file = _get_checkpoints_2t_file()
+    if ck_file.exists():
         try:
-            with open(_CHECKPOINTS_2T_FILE, encoding="utf-8") as f:
+            with open(ck_file, encoding="utf-8") as f:
                 _PRECOMPUTED_CHECKPOINTS_2T = json.load(f)
                 return _PRECOMPUTED_CHECKPOINTS_2T
         except Exception:
@@ -1065,7 +1090,7 @@ def load_second_round_validation_catalog(
         return _CATALOG_2T_CACHE[limit_sections]
 
     loader = RealDataLoader()
-    parquet_2t = Path("data/real/catalog_2026_2t.parquet")
+    parquet_2t = get_real_data_dir() / "catalog_2026_2t.parquet"
     if parquet_2t.exists():
         cat_2t = loader.load_catalog_parquet(parquet_2t, limit_rows=limit_sections)
         _CATALOG_2T_CACHE[limit_sections] = cat_2t

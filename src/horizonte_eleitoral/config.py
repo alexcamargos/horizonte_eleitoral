@@ -144,3 +144,40 @@ def _parse_positive_int(value: str | None, name: str, default: int) -> int:
     if parsed <= 0:
         raise ConfigurationError(f"{name} deve ser maior que zero.")
     return parsed
+
+
+def get_project_root() -> Path:
+    """Retorna o caminho absoluto do diretorio raiz do projeto Horizonte Eleitoral.
+
+    Busca dinamicamente pelo arquivo marcador 'pyproject.toml' subindo a partir da
+    localizacao deste modulo. Se nao encontrar, utiliza o diretorio de trabalho atual.
+
+    Args:
+        None.
+
+    Returns:
+        Path absoluto para a raiz do repositorio.
+
+    Raises:
+        None.
+    """
+    current = Path(__file__).resolve()
+    for parent in current.parents:
+        if (parent / "pyproject.toml").exists():
+            return parent
+    return Path.cwd()
+
+
+def get_real_data_dir() -> Path:
+    """Retorna o caminho absoluto do diretorio de dados reais (data/real).
+
+    Args:
+        None.
+
+    Returns:
+        Path absoluto para o diretorio data/real do repositorio.
+
+    Raises:
+        None.
+    """
+    return get_project_root() / "data" / "real"

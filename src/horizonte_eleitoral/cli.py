@@ -13,7 +13,14 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from horizonte_eleitoral.backtest.compare import format_comparison_table, run_v1_v2_comparison
-from horizonte_eleitoral.config import Settings, get_real_data_dir, load_settings
+from horizonte_eleitoral.config import (
+    Settings,
+    get_final_data_dir,
+    get_norm_data_dir,
+    get_raw_data_dir,
+    get_real_data_dir,
+    load_settings,
+)
 from horizonte_eleitoral.historical.elasticity import MunicipalElasticityIndex
 from horizonte_eleitoral.ingestion.real_data_loader import RealDataLoader
 from horizonte_eleitoral.simulation.election_night_runner import (
@@ -46,16 +53,33 @@ def _resolve_and_load_real_catalog(
         FileNotFoundError: Se os arquivos nao forem localizados.
     """
     data_dir = Path(data_dir_str)
-    if data_dir == Path("data/real") and not data_dir.exists():
-        data_dir = get_real_data_dir()
+    is_default_data_dir = data_dir in (Path("data"), Path("data/final"), Path("data/real"))
+    if is_default_data_dir and not data_dir.exists():
+        data_dir = get_final_data_dir()
     fallback_dir = (
         Path(__file__).resolve().parent.parent.parent / "tests" / "fixtures" / "real_replay"
     )
     loader = RealDataLoader()
 
     # 1. Verifica se ja existe catalog_2026.parquet analitico (formato colunar de alta performance)
-    parquet_path = data_dir / "catalog_2026.parquet"
-    if not historical_file_str and not results_file_str and parquet_path.exists():
+    parquet_candidates = [
+        data_dir / "catalog_2026.parquet",
+        data_dir / "final" / "catalog_2026.parquet",
+    ]
+    if is_default_data_dir:
+        parquet_candidates.extend(
+            [
+                get_final_data_dir() / "catalog_2026.parquet",
+                get_real_data_dir() / "catalog_2026.parquet",
+            ]
+        )
+    parquet_path: Path | None = None
+    for candidate in parquet_candidates:
+        if candidate.exists():
+            parquet_path = candidate
+            break
+
+    if not historical_file_str and not results_file_str and parquet_path is not None:
         print(f"Carregando catalogo analitico de 2026 de: {parquet_path.name}...")
         catalog = loader.load_catalog_parquet(
             parquet_path, limit_rows=limit_sections, filter_ufs=filter_ufs
@@ -64,17 +88,29 @@ def _resolve_and_load_real_catalog(
         return catalog
 
     # 1.1 Fallback para catalog_2026.csv se o parquet ainda nao tiver sido gerado
-    csv_path = data_dir / "catalog_2026.csv"
-    if not historical_file_str and not results_file_str and csv_path.exists():
+    csv_candidates = [
+        data_dir / "catalog_2026.csv",
+        data_dir / "norm" / "catalog_2026.csv",
+    ]
+    if is_default_data_dir:
+        csv_candidates.append(get_norm_data_dir() / "catalog_2026.csv")
+    csv_path: Path | None = None
+    for candidate in csv_candidates:
+        if candidate.exists():
+            csv_path = candidate
+            break
+
+    if not historical_file_str and not results_file_str and csv_path is not None:
         print(f"Carregando catalogo consolidado de 2026 de: {csv_path.name}...")
         catalog = loader.load_catalog_csv(
             csv_path, limit_rows=limit_sections, filter_ufs=filter_ufs
         )
         print(f"Catalogo real carregado com sucesso ({len(catalog)} secoes ordenadas).")
-        if data_dir == Path("data/real") and limit_sections is None and filter_ufs is None:
+        if is_default_data_dir and limit_sections is None and filter_ufs is None:
             try:
-                loader.save_catalog_parquet(catalog, parquet_path)
-                print(f"Catalogo analitico Parquet gerado para reuso: {parquet_path.name}")
+                target_parquet = get_final_data_dir() / "catalog_2026.parquet"
+                loader.save_catalog_parquet(catalog, target_parquet)
+                print(f"Catalogo analitico Parquet gerado para reuso: {target_parquet.name}")
             except Exception:
                 pass
         return catalog
@@ -86,11 +122,24 @@ def _resolve_and_load_real_catalog(
     else:
         candidates_2022 = [
             data_dir / "historical_2022.csv",
+            data_dir / "norm" / "historical_2022.csv",
             data_dir / "votacao_secao_2022_BR.zip",
+            data_dir / "raw" / "votacao_secao_2022_BR.zip",
             data_dir / "Historico_Totalizacao_Presidente_BR_1T_2022.zip",
+            data_dir / "raw" / "Historico_Totalizacao_Presidente_BR_1T_2022.zip",
             data_dir / "detalhe_votacao_munzona_2022.zip",
-            fallback_dir / "sample_historical_2022.csv",
+            data_dir / "raw" / "detalhe_votacao_munzona_2022.zip",
         ]
+        if is_default_data_dir:
+            candidates_2022.extend(
+                [
+                    get_norm_data_dir() / "historical_2022.csv",
+                    get_raw_data_dir() / "votacao_secao_2022_BR.zip",
+                    get_raw_data_dir() / "Historico_Totalizacao_Presidente_BR_1T_2022.zip",
+                    get_raw_data_dir() / "detalhe_votacao_munzona_2022.zip",
+                ]
+            )
+        candidates_2022.append(fallback_dir / "sample_historical_2022.csv")
         for c in candidates_2022:
             if c.exists():
                 hist_path = c
@@ -108,9 +157,18 @@ def _resolve_and_load_real_catalog(
     else:
         candidates_2026 = [
             data_dir / "sections_2026.csv",
+            data_dir / "norm" / "sections_2026.csv",
             data_dir / "votacao_secao_2026_BR.zip",
-            fallback_dir / "sample_results_2026.csv",
+            data_dir / "raw" / "votacao_secao_2026_BR.zip",
         ]
+        if is_default_data_dir:
+            candidates_2026.extend(
+                [
+                    get_norm_data_dir() / "sections_2026.csv",
+                    get_raw_data_dir() / "votacao_secao_2026_BR.zip",
+                ]
+            )
+        candidates_2026.append(fallback_dir / "sample_results_2026.csv")
         for c in candidates_2026:
             if c.exists():
                 results_path = c
@@ -142,11 +200,12 @@ def _resolve_and_load_real_catalog(
         and not results_file_str
         and limit_sections is None
         and filter_ufs is None
-        and data_dir == Path("data/real")
+        and is_default_data_dir
     ):
         try:
-            loader.save_catalog_parquet(catalog, parquet_path)
-            print(f"Catalogo analitico Parquet gravado para reuso: {parquet_path.name}")
+            target_parquet = get_final_data_dir() / "catalog_2026.parquet"
+            loader.save_catalog_parquet(catalog, target_parquet)
+            print(f"Catalogo analitico Parquet gravado para reuso: {target_parquet.name}")
         except Exception:
             pass
 
@@ -428,8 +487,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument(
         "--data-dir",
         type=str,
-        default="data/real",
-        help="Diretorio contendo os arquivos de dados reais (padrao: data/real).",
+        default="data/final",
+        help="Diretorio contendo os arquivos de dados (padrao: data/final).",
     )
     parser.add_argument(
         "--historical-file",
@@ -485,7 +544,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument(
         "--consolidate-2018",
         action="store_true",
-        help="Consolida os votos de 2018 em data/real/historical_2018.csv.",
+        help="Consolida os votos de 2018 em data/norm/historical_2018.csv.",
     )
     parser.add_argument(
         "--build-elasticity",
@@ -585,8 +644,24 @@ def main(argv: Sequence[str] | None = None) -> None:
             f"Flávio Bolsonaro (PL) {summary_2t['official_shares']['PL']:.2f}%"
         )
         loader_2t = RealDataLoader()
-        cat_2t = loader_2t.load_catalog_parquet(data_dir / "catalog_2026_2t.parquet")
-        ck_path = data_dir / "checkpoints_2026_2t.json"
+        cat_2t_candidates = [
+            data_dir / "catalog_2026_2t.parquet",
+            data_dir / "final" / "catalog_2026_2t.parquet",
+            get_final_data_dir() / "catalog_2026_2t.parquet",
+        ]
+        cat_2t_path = next(
+            (c for c in cat_2t_candidates if c.exists()),
+            data_dir / "catalog_2026_2t.parquet",
+        )
+        cat_2t = loader_2t.load_catalog_parquet(cat_2t_path)
+        ck_out_dir = (
+            data_dir / "final"
+            if (data_dir / "final").exists()
+            else (
+                get_final_data_dir() if data_dir in (Path("data"), Path("data/real")) else data_dir
+            )
+        )
+        ck_path = ck_out_dir / "checkpoints_2026_2t.json"
         print(f"Pre-computando marcos de validacao retroativa do 2º Turno em {ck_path.name}...")
         computed_cks = precompute_second_round_checkpoints(
             catalog_2t=cat_2t,
@@ -602,11 +677,15 @@ def main(argv: Sequence[str] | None = None) -> None:
         norm_pct = pct / 100.0 if pct > 1.0 else pct
         print(f"Iniciando ensaio do 2º turno de 2026 com {norm_pct * 100:.1f}% da apuracao...")
         loader_2t = RealDataLoader()
-        parquet_2t = data_dir / "catalog_2026_2t.parquet"
-        if not parquet_2t.exists():
-            parquet_2t = get_real_data_dir() / "catalog_2026_2t.parquet"
+        parquet_candidates_2t = [
+            data_dir / "catalog_2026_2t.parquet",
+            data_dir / "final" / "catalog_2026_2t.parquet",
+            get_final_data_dir() / "catalog_2026_2t.parquet",
+            get_real_data_dir() / "catalog_2026_2t.parquet",
+        ]
+        parquet_2t = next((c for c in parquet_candidates_2t if c.exists()), None)
 
-        if parquet_2t.exists() and not args.historical_file and not args.results_file:
+        if parquet_2t is not None and not args.historical_file and not args.results_file:
             print(f"Carregando catalogo real do 2º Turno de: {parquet_2t.name}...")
             sections_catalog = loader_2t.load_catalog_parquet(
                 parquet_2t, limit_rows=args.limit_sections, filter_ufs=args.ufs
@@ -649,22 +728,69 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.download_2018:
         from scripts.download_tse_2018 import download_tse_2018_file
 
-        zip_target = data_dir / "votacao_secao_2018_BR.zip"
+        raw_dir = (
+            data_dir / "raw"
+            if (data_dir / "raw").exists()
+            else (
+                get_raw_data_dir()
+                if data_dir in (Path("data"), Path("data/final"), Path("data/real"))
+                else data_dir
+            )
+        )
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        zip_target = raw_dir / "votacao_secao_2018_BR.zip"
         download_tse_2018_file(zip_target)
         return
 
     if args.consolidate_2018:
         from horizonte_eleitoral.ingestion.consolidator import consolidate_2018_sections
 
-        zip_18 = data_dir / "votacao_secao_2018_BR.zip"
-        out_18 = data_dir / "historical_2018.csv"
+        zip_candidates = [
+            data_dir / "votacao_secao_2018_BR.zip",
+            data_dir / "raw" / "votacao_secao_2018_BR.zip",
+            get_raw_data_dir() / "votacao_secao_2018_BR.zip",
+        ]
+        zip_18 = next(
+            (c for c in zip_candidates if c.exists()), data_dir / "votacao_secao_2018_BR.zip"
+        )
+        norm_dir = (
+            data_dir / "norm"
+            if (data_dir / "norm").exists()
+            else (
+                get_norm_data_dir()
+                if data_dir in (Path("data"), Path("data/final"), Path("data/real"))
+                else data_dir
+            )
+        )
+        norm_dir.mkdir(parents=True, exist_ok=True)
+        out_18 = norm_dir / "historical_2018.csv"
         consolidate_2018_sections(zip_18, out_18, round_num=1)
         return
 
     if args.build_elasticity:
-        p18 = data_dir / "historical_2018.csv"
-        p22 = data_dir / "historical_2022.csv"
-        out_elast = data_dir / "elasticity_2018_2022.parquet"
+        p18_candidates = [
+            data_dir / "historical_2018.csv",
+            data_dir / "norm" / "historical_2018.csv",
+            get_norm_data_dir() / "historical_2018.csv",
+        ]
+        p18 = next((c for c in p18_candidates if c.exists()), data_dir / "historical_2018.csv")
+        p22_candidates = [
+            data_dir / "historical_2022.csv",
+            data_dir / "norm" / "historical_2022.csv",
+            get_norm_data_dir() / "historical_2022.csv",
+        ]
+        p22 = next((c for c in p22_candidates if c.exists()), data_dir / "historical_2022.csv")
+        final_dir = (
+            data_dir / "final"
+            if (data_dir / "final").exists()
+            else (
+                get_final_data_dir()
+                if data_dir in (Path("data"), Path("data/norm"), Path("data/real"))
+                else data_dir
+            )
+        )
+        final_dir.mkdir(parents=True, exist_ok=True)
+        out_elast = final_dir / "elasticity_2018_2022.parquet"
         idx = MunicipalElasticityIndex.build_from_csvs(p18, p22)
         saved = idx.save_parquet(out_elast)
         print(f"Indice de elasticidade gerado: {saved} municipios salvos em {out_elast.name}.")
@@ -679,14 +805,29 @@ def main(argv: Sequence[str] | None = None) -> None:
             limit_sections=args.limit_sections,
             filter_ufs=args.ufs,
         )
-        elast_path = data_dir / "elasticity_2018_2022.parquet"
+        elast_candidates = [
+            data_dir / "elasticity_2018_2022.parquet",
+            data_dir / "final" / "elasticity_2018_2022.parquet",
+            get_final_data_dir() / "elasticity_2018_2022.parquet",
+        ]
+        elast_path = next((c for c in elast_candidates if c.exists()), None)
         elast_idx: MunicipalElasticityIndex | None = None
-        if elast_path.exists():
+        if elast_path is not None:
             print(f"Carregando indice de elasticidade de: {elast_path.name}...")
             elast_idx = MunicipalElasticityIndex.load_parquet(elast_path)
         else:
-            p18 = data_dir / "historical_2018.csv"
-            p22 = data_dir / "historical_2022.csv"
+            p18_candidates = [
+                data_dir / "historical_2018.csv",
+                data_dir / "norm" / "historical_2018.csv",
+                get_norm_data_dir() / "historical_2018.csv",
+            ]
+            p18 = next((c for c in p18_candidates if c.exists()), data_dir / "historical_2018.csv")
+            p22_candidates = [
+                data_dir / "historical_2022.csv",
+                data_dir / "norm" / "historical_2022.csv",
+                get_norm_data_dir() / "historical_2022.csv",
+            ]
+            p22 = next((c for c in p22_candidates if c.exists()), data_dir / "historical_2022.csv")
             if p18.exists() and p22.exists():
                 print("Calculando indice de elasticidade a partir dos CSVs...")
                 elast_idx = MunicipalElasticityIndex.build_from_csvs(p18, p22)
@@ -711,14 +852,23 @@ def main(argv: Sequence[str] | None = None) -> None:
         return
 
     if args.query_sql:
-        parquet_path = data_dir / "catalog_2026.parquet"
-        if not parquet_path.exists():
+        parquet_candidates = [
+            data_dir / "catalog_2026.parquet",
+            data_dir / "final" / "catalog_2026.parquet",
+            get_final_data_dir() / "catalog_2026.parquet",
+            get_real_data_dir() / "catalog_2026.parquet",
+        ]
+        parquet_path = next((c for c in parquet_candidates if c.exists()), None)
+        if parquet_path is None:
             _resolve_and_load_real_catalog(
                 data_dir_str=args.data_dir,
                 historical_file_str=args.historical_file,
                 results_file_str=args.results_file,
                 limit_sections=args.limit_sections,
                 filter_ufs=args.ufs,
+            )
+            parquet_path = next(
+                (c for c in parquet_candidates if c.exists()), data_dir / "catalog_2026.parquet"
             )
         loader = RealDataLoader()
         rel = loader.query_catalog_sql(parquet_path, args.query_sql)

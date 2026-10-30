@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from horizonte_eleitoral.config import get_real_data_dir
+from horizonte_eleitoral.config import get_final_data_dir, get_real_data_dir
 from horizonte_eleitoral.domain.enums import GeographicScope
 from horizonte_eleitoral.ingestion.real_data_loader import RealDataLoader
 from horizonte_eleitoral.models.base import SectionObservation
@@ -94,11 +94,17 @@ DEFAULT_STATE_POLLS: dict[str, dict[str, float]] = {
 
 def _get_checkpoints_file() -> Path:
     """Retorna o caminho canonico do arquivo de checkpoints do 1º Turno."""
+    final_path = get_final_data_dir() / "checkpoints_2026.json"
+    if final_path.exists():
+        return final_path
     return get_real_data_dir() / "checkpoints_2026.json"
 
 
 def _get_checkpoints_2t_file() -> Path:
     """Retorna o caminho canonico do arquivo de checkpoints do 2º Turno."""
+    final_path = get_final_data_dir() / "checkpoints_2026_2t.json"
+    if final_path.exists():
+        return final_path
     return get_real_data_dir() / "checkpoints_2026_2t.json"
 
 
@@ -154,11 +160,15 @@ def load_replay_catalog(limit_sections: int | None = None) -> list[dict[str, Any
         return _CATALOG_CACHE[limit_sections]
 
     loader = RealDataLoader()
-    parquet_path = get_real_data_dir() / "catalog_2026.parquet"
-    if parquet_path.exists():
-        catalog = loader.load_catalog_parquet(parquet_path, limit_rows=limit_sections)
-        _CATALOG_CACHE[limit_sections] = catalog
-        return catalog
+    candidates = [
+        get_final_data_dir() / "catalog_2026.parquet",
+        get_real_data_dir() / "catalog_2026.parquet",
+    ]
+    for parquet_path in candidates:
+        if parquet_path.exists():
+            catalog = loader.load_catalog_parquet(parquet_path, limit_rows=limit_sections)
+            _CATALOG_CACHE[limit_sections] = catalog
+            return catalog
 
     fallback_csv = Path("tests/fixtures/real_replay/sample_results_2026.csv")
     fallback_hist = Path("tests/fixtures/real_replay/sample_historical_2022.csv")
@@ -1073,8 +1083,8 @@ def load_second_round_validation_catalog(
 ) -> list[dict[str, Any]]:
     """Carrega o catalogo cronologico real do 2º Turno de 2026 com fallback offline deterministico.
 
-    Prioriza ``data/real/catalog_2026_2t.parquet`` consolidado a partir dos arquivos oficiais
-    da CDN do TSE (eleicao 6258). Em ambientes de teste/CI sem a pasta ``data/real``, deriva
+    Prioriza ``data/final/catalog_2026_2t.parquet`` consolidado a partir dos arquivos oficiais
+    da CDN do TSE (eleicao 6258). Em ambientes de teste/CI sem a pasta ``data/final``, deriva
     automaticamente um catalogo bilateral deterministico a partir do catalogo de fixture.
 
     Args:
@@ -1090,11 +1100,15 @@ def load_second_round_validation_catalog(
         return _CATALOG_2T_CACHE[limit_sections]
 
     loader = RealDataLoader()
-    parquet_2t = get_real_data_dir() / "catalog_2026_2t.parquet"
-    if parquet_2t.exists():
-        cat_2t = loader.load_catalog_parquet(parquet_2t, limit_rows=limit_sections)
-        _CATALOG_2T_CACHE[limit_sections] = cat_2t
-        return cat_2t
+    candidates = [
+        get_final_data_dir() / "catalog_2026_2t.parquet",
+        get_real_data_dir() / "catalog_2026_2t.parquet",
+    ]
+    for parquet_2t in candidates:
+        if parquet_2t.exists():
+            cat_2t = loader.load_catalog_parquet(parquet_2t, limit_rows=limit_sections)
+            _CATALOG_2T_CACHE[limit_sections] = cat_2t
+            return cat_2t
 
     base_cat = load_replay_catalog(limit_sections=limit_sections)
     derived: list[dict[str, Any]] = []

@@ -623,7 +623,7 @@ def summarize_second_round_validation(
     """
     if not points:
         return {
-            "final_oficial": {"PT": 50.0, "PL": 50.0},
+            "final_oficial": {"PT": 51.79, "PL": 48.21},
             "winner_code": "PT",
             "partial_waves_count": 0,
             "mean_model_mae_pp": None,
@@ -637,7 +637,7 @@ def summarize_second_round_validation(
         }
 
     ordered = sorted(points, key=lambda p: float(p.get("x", 0.0)))
-    final_oficial = dict(ordered[-1].get("final_oficial") or {"PT": 51.77, "PL": 48.23})
+    final_oficial = dict(ordered[-1].get("final_oficial") or {"PT": 51.79, "PL": 48.21})
     winner = "PT" if float(final_oficial.get("PT", 50.0)) >= 50.0 else "PL"
 
     valid_pts = [p for p in ordered if p.get("projecao") is not None]

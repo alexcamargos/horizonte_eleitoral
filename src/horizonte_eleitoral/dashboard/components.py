@@ -222,14 +222,6 @@ def render_editorial_header(
             "</div>",
             unsafe_allow_html=True,
         )
-    elif environment == "simulado":
-        st.markdown(
-            '<div class="banner-aviso">'
-            "<strong>Simulação Sintética:</strong> dados gerados com variabilidade empírica "
-            "para testes de estresse operacional e latência."
-            "</div>",
-            unsafe_allow_html=True,
-        )
 
 
 def render_p2t_banner(prob_2t: float | None) -> None:
@@ -1176,9 +1168,9 @@ def render_validation_panel(
         )
     else:
         if not final_map:
-            final_map = {"PT": 51.77, "PL": 48.23}
-        f_pt = float(final_map.get("PT", 51.77))
-        f_pl = float(final_map.get("PL", 48.23))
+            final_map = {"PT": 51.79, "PL": 48.21}
+        f_pt = float(final_map.get("PT", 51.79))
+        f_pl = float(final_map.get("PL", 48.21))
         margin_pp = abs(f_pt - f_pl)
         winner_name = "Lula (PT)" if f_pt >= f_pl else "Flávio (PL)"
         gabarito_val = f"{fmt_pct(f_pt, 2)} × {fmt_pct(f_pl, 2)}"

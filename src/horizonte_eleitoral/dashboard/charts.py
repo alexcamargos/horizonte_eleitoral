@@ -1006,19 +1006,45 @@ def build_second_round_chart(
             )
             layers.extend([band_fwd, line_fwd])
 
+    # Separacao vertical anti-sobreposicao entre Projecao e Gabarito Oficial TSE
+    has_final = bool(final_result and "PT" in final_result and "PL" in final_result)
+    f_pt_val = float(final_result["PT"]) if has_final and final_result else None
+    f_pl_val = float(final_result["PL"]) if has_final and final_result else None
+
     # Rotulos e Marcadores Terminais em 100%
     if proj_map and ("PT" in proj_map or "PL" in proj_map):
         term_rows: list[dict[str, Any]] = []
         pt_p = float(proj_map.get("PT", 0.0))
         pl_p = float(proj_map.get("PL", 0.0))
-        pt_offset = 1.2 if pt_p >= pl_p else -1.2
-        pl_offset = -1.2 if pt_p >= pl_p else 1.2
+        pt_is_leader = pt_p >= pl_p
+
+        base_pt = (
+            max(pt_p, f_pt_val if f_pt_val is not None else pt_p)
+            if pt_is_leader
+            else min(pt_p, f_pt_val if f_pt_val is not None else pt_p)
+        )
+        base_pl = (
+            min(pl_p, f_pl_val if f_pl_val is not None else pl_p)
+            if pt_is_leader
+            else max(pl_p, f_pl_val if f_pl_val is not None else pl_p)
+        )
+
+        if pt_is_leader:
+            pt_proj_y = base_pt + (1.0 if has_final else 1.2)
+            pl_proj_y = base_pl - (1.0 if has_final else 1.2)
+            pt_final_y = base_pt + 2.6
+            pl_final_y = base_pl - 2.6
+        else:
+            pt_proj_y = base_pt - (1.0 if has_final else 1.2)
+            pl_proj_y = base_pl + (1.0 if has_final else 1.2)
+            pt_final_y = base_pt - 2.6
+            pl_final_y = base_pl + 2.6
 
         for bloco in ("PT", "PL"):
             if bloco in proj_map and proj_map[bloco] is not None:
                 p_val = float(proj_map[bloco])
                 cand = CANDIDATE_NAMES.get(bloco, bloco)
-                offset = pt_offset if bloco == "PT" else pl_offset
+                label_y_val = pt_proj_y if bloco == "PT" else pl_proj_y
                 q05_str = (
                     f"{faixa_map[bloco][0]:.2f}%" if (faixa_map and bloco in faixa_map) else ""
                 )
@@ -1033,7 +1059,7 @@ def build_second_round_chart(
                         "bloco": bloco,
                         "candidato": cand,
                         "projecao": p_val,
-                        "label_y": p_val + offset,
+                        "label_y": label_y_val,
                         "label": label_text,
                         "q05": (
                             float(faixa_map[bloco][0])
@@ -1073,7 +1099,7 @@ def build_second_round_chart(
             )
             text_term = (
                 alt.Chart(df_term)
-                .mark_text(align="right", dx=-10, fontSize=11, fontWeight="bold")
+                .mark_text(align="right", dx=-10, fontSize=10.5, fontWeight="bold")
                 .encode(
                     x="x:Q",
                     y=alt.Y("label_y:Q", scale=y_scale_2t),
@@ -1092,24 +1118,33 @@ def build_second_round_chart(
         )
         layers.append(rule_act)
 
-    if final_result and "PT" in final_result and "PL" in final_result:
-        f_pt = float(final_result["PT"])
-        f_pl = float(final_result["PL"])
+    if has_final and final_result and f_pt_val is not None and f_pl_val is not None:
+        pt_f_y = (
+            pt_final_y
+            if "pt_final_y" in locals()
+            else (f_pt_val + 1.6 if f_pt_val >= f_pl_val else f_pt_val - 1.6)
+        )
+        pl_f_y = (
+            pl_final_y
+            if "pl_final_y" in locals()
+            else (f_pl_val - 1.6 if f_pt_val >= f_pl_val else f_pl_val + 1.6)
+        )
+
         final_df = pd.DataFrame(
             [
                 {
                     "bloco": "PT",
-                    "y": f_pt,
-                    "x": 99.0,
-                    "label_y": f_pt + 1.0 if f_pt >= f_pl else f_pt - 1.2,
-                    "label": f"Final TSE PT: {f_pt:.2f}%".replace(".", ","),
+                    "y": f_pt_val,
+                    "x": 100.0,
+                    "label_y": pt_f_y,
+                    "label": f"Final TSE PT: {f_pt_val:.2f}%".replace(".", ","),
                 },
                 {
                     "bloco": "PL",
-                    "y": f_pl,
-                    "x": 99.0,
-                    "label_y": f_pl - 1.2 if f_pt >= f_pl else f_pl + 1.0,
-                    "label": f"Final TSE PL: {f_pl:.2f}%".replace(".", ","),
+                    "y": f_pl_val,
+                    "x": 100.0,
+                    "label_y": pl_f_y,
+                    "label": f"Final TSE PL: {f_pl_val:.2f}%".replace(".", ","),
                 },
             ]
         )
@@ -1123,7 +1158,7 @@ def build_second_round_chart(
         )
         text_final = (
             alt.Chart(final_df)
-            .mark_text(align="right", fontSize=10, fontWeight="bold", opacity=0.85)
+            .mark_text(align="right", dx=-10, fontSize=9.5, fontWeight="bold", opacity=0.85)
             .encode(
                 x="x:Q",
                 y=alt.Y("label_y:Q", scale=y_scale_2t),
@@ -1154,7 +1189,7 @@ def build_second_round_chart(
     return cast(alt.LayerChart | alt.Chart, chart)
 
 
-def build_second_round_error_chart(
+def build_model_error_chart(
     points: list[dict[str, Any]],
     height: int = 300,
     y_max: float | None = None,
@@ -1164,7 +1199,7 @@ def build_second_round_error_chart(
 
     Compara ao longo das ondas (>= 2% apurado) o erro absoluto em pontos percentuais (pp)
     da contagem parcial bruta das urnas contra o erro da projeção HORIZON-MRP em relação
-    ao resultado oficial definitivo do 2º turno no TSE.
+    ao resultado oficial definitivo no TSE (aplicável tanto ao 1º quanto ao 2º turno).
 
     Args:
         points: Lista cronológica de pontos contendo o bloco ``metrics``.
@@ -1394,3 +1429,7 @@ def build_second_round_error_chart(
 
     composed = alt.layer(*layers).properties(height=height)
     return cast(alt.LayerChart | alt.Chart, composed)
+
+
+# Alias de retrocompatibilidade para suites e chamadas legadas do 2º turno
+build_second_round_error_chart = build_model_error_chart

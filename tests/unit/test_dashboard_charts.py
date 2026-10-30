@@ -5,7 +5,9 @@ from __future__ import annotations
 import altair as alt
 
 from horizonte_eleitoral.dashboard.charts import (
+    build_model_error_chart,
     build_projection_chart,
+    build_second_round_error_chart,
     prepare_chart_dataframe,
 )
 
@@ -151,3 +153,78 @@ def test_build_projection_chart_with_preliminary_data() -> None:
     assert isinstance(chart, alt.VConcatChart)
     chart_dict = chart.to_dict()
     assert len(chart_dict["vconcat"]) == 2
+
+
+def test_build_model_error_chart_first_round_points() -> None:
+    """Valida geracao do grafico comparativo de erro absoluto para dados do 1º Turno.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+
+    Raises:
+        AssertionError: Caso o grafico retornado nao seja uma instancia valida de alt.Chart.
+    """
+    points_1t = [
+        {
+            "t": "17:03",
+            "x": 1.0,
+            "metrics": {
+                "raw_mae_pp": 6.84,
+                "model_mae_pp": None,
+                "mae_gain_pp": None,
+                "ci_90_covered": None,
+            },
+        },
+        {
+            "t": "17:06",
+            "x": 2.0,
+            "metrics": {
+                "raw_mae_pp": 6.26,
+                "model_mae_pp": 0.06,
+                "mae_gain_pp": 6.20,
+                "ci_90_covered": True,
+            },
+        },
+        {
+            "t": "17:15",
+            "x": 5.0,
+            "metrics": {
+                "raw_mae_pp": 6.36,
+                "model_mae_pp": 0.11,
+                "mae_gain_pp": 6.25,
+                "ci_90_covered": True,
+            },
+        },
+        {
+            "t": "17:30",
+            "x": 10.0,
+            "metrics": {
+                "raw_mae_pp": 5.50,
+                "model_mae_pp": 0.04,
+                "mae_gain_pp": 5.46,
+                "ci_90_covered": True,
+            },
+        },
+    ]
+
+    chart = build_model_error_chart(
+        points=points_1t,
+        height=320,
+        y_max=4.0,
+        active_wave=10.0,
+    )
+    assert chart is not None
+    assert isinstance(chart, (alt.Chart, alt.LayerChart))
+
+    # Valida alias de retrocompatibilidade
+    chart_alias = build_second_round_error_chart(
+        points=points_1t,
+        height=320,
+        y_max=20.0,
+        active_wave=5.0,
+    )
+    assert chart_alias is not None
+    assert isinstance(chart_alias, (alt.Chart, alt.LayerChart))

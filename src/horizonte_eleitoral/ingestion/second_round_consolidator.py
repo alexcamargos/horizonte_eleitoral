@@ -23,6 +23,7 @@ import httpx
 import numpy as np
 import numpy.typing as npt
 
+from horizonte_eleitoral.config import get_final_data_dir, get_real_data_dir
 from horizonte_eleitoral.ingestion.real_data_loader import RealDataLoader
 from horizonte_eleitoral.ingestion.tse_live_poller import ALL_TSE_STATE_CODES
 from horizonte_eleitoral.models.swing import calibrated_logratio_swing
@@ -647,7 +648,7 @@ async def download_tse_2026_2t_official_data(
 
 def consolidate_and_save_2026_second_round(
     *,
-    data_dir: Path | str = "data/real",
+    data_dir: Path | str = "data/final",
     election_id: str = "6258",
     max_concurrency: int = 48,
 ) -> dict[str, Any]:
@@ -666,9 +667,20 @@ def consolidate_and_save_2026_second_round(
     """
     base_dir = Path(data_dir)
     loader = RealDataLoader()
-    cat_1t_path = base_dir / "catalog_2026.parquet"
-    if not cat_1t_path.exists():
-        raise FileNotFoundError(f"Catalogo do 1o turno nao encontrado em: {cat_1t_path}")
+    cat_1t_candidates = [
+        base_dir / "catalog_2026.parquet",
+        base_dir / "final" / "catalog_2026.parquet",
+        get_final_data_dir() / "catalog_2026.parquet",
+        get_real_data_dir() / "catalog_2026.parquet",
+    ]
+    cat_1t_path: Path | None = None
+    for candidate in cat_1t_candidates:
+        if candidate.exists():
+            cat_1t_path = candidate
+            break
+
+    if cat_1t_path is None:
+        raise FileNotFoundError(f"Catalogo do 1o turno nao encontrado em: {base_dir}")
 
     first_round_catalog = loader.load_catalog_parquet(cat_1t_path)
     muni_keys = sorted(
@@ -693,7 +705,13 @@ def consolidate_and_save_2026_second_round(
         muni_completion_times=muni_times,
     )
 
-    out_parquet = base_dir / "catalog_2026_2t.parquet"
+    out_dir = (
+        base_dir / "final"
+        if (base_dir / "final").exists()
+        else (get_final_data_dir() if base_dir in (Path("data"), Path("data/real")) else base_dir)
+    )
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_parquet = out_dir / "catalog_2026_2t.parquet"
     saved_rows = loader.save_catalog_parquet(catalog_2t, out_parquet)
 
     br_votes = dict(br_tot.candidate_group_votes)
@@ -742,6 +760,6 @@ def consolidate_and_save_2026_second_round(
         },
     }
 
-    summary_path = base_dir / "tse_2026_2t_official_summary.json"
+    summary_path = out_dir / "tse_2026_2t_official_summary.json"
     summary_path.write_text(json.dumps(summary_payload, indent=2), encoding="utf-8")
     return summary_payload

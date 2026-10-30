@@ -14,6 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
+from horizonte_eleitoral.config import get_final_data_dir, get_real_data_dir
 from horizonte_eleitoral.historical.elasticity import MunicipalElasticityIndex
 from horizonte_eleitoral.models.base import (
     ForecastModel,
@@ -44,13 +45,19 @@ def get_default_elasticity_index() -> MunicipalElasticityIndex | None:
     if _DEFAULT_ELASTICITY_INDEX is not None:
         return _DEFAULT_ELASTICITY_INDEX
 
-    default_path = Path("data/real/elasticity_2018_2022.parquet")
-    if default_path.exists():
-        try:
-            _DEFAULT_ELASTICITY_INDEX = MunicipalElasticityIndex.load_parquet(default_path)
-            return _DEFAULT_ELASTICITY_INDEX
-        except Exception:
-            return None
+    candidates = [
+        get_final_data_dir() / "elasticity_2018_2022.parquet",
+        Path("data/final/elasticity_2018_2022.parquet"),
+        get_real_data_dir() / "elasticity_2018_2022.parquet",
+        Path("data/real/elasticity_2018_2022.parquet"),
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            try:
+                _DEFAULT_ELASTICITY_INDEX = MunicipalElasticityIndex.load_parquet(candidate)
+                return _DEFAULT_ELASTICITY_INDEX
+            except Exception:
+                return None
     return None
 
 

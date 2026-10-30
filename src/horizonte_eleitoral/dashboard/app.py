@@ -17,6 +17,7 @@ from horizonte_eleitoral.backtest.second_round_validation import (
 from horizonte_eleitoral.config import load_settings
 from horizonte_eleitoral.dashboard import charts as dashboard_charts
 from horizonte_eleitoral.dashboard.charts import (
+    build_model_error_chart,
     build_second_round_chart,
     build_second_round_error_chart,
 )
@@ -226,6 +227,46 @@ def _render_first_round_tab() -> None:
         extend_to_end=not is_full_1t,
     )
     st.altair_chart(chart, use_container_width=True)
+
+    # Grafico Comparativo de Erro Absoluto (HORIZON-MRP vs Urna Bruta)
+    st.markdown('<div style="margin-top: 28px;"></div>', unsafe_allow_html=True)
+    st.markdown("#### Qualidade do Modelo HORIZON-MRP: Erro Absoluto ao Longo da Apuração")
+    st.caption(
+        "Distância média absoluta em pontos percentuais (pp) para o resultado oficial "
+        "definitivo do TSE (PT: 45,16%, PL: 47,03%, OUTROS: 7,81%). "
+        "A linha vertical destaca o marco percentual avaliado no controle acima."
+    )
+
+    col_scale_1t, col_ext_1t = st.columns([1.8, 2.2])
+    with col_scale_1t:
+        scale_opt_1t = st.radio(
+            "Escala vertical do erro:",
+            options=["Foco de Precisão (0 a 4 pp)", "Escala Ampla (0 a 20 pp)"],
+            index=0,
+            horizontal=True,
+            key="radio_1t_error_chart_scale",
+            help="Foco de Precisão permite visualizar detalhes abaixo de 1 pp e a meta de 0,50 pp.",
+        )
+    with col_ext_1t:
+        ext_opt_1t = st.radio(
+            "Extensão da série avaliada:",
+            options=["Série Completa (2% a 100%)", "Apenas até o marco selecionado"],
+            index=0,
+            horizontal=True,
+            key="radio_1t_error_chart_extent",
+            help="Série Completa exibe a convergência global com cursor no marco atual.",
+        )
+
+    y_ceiling_1t = 4.0 if "Foco" in scale_opt_1t else 20.0
+    chart_err_points_1t = full_series if "Completa" in ext_opt_1t else points
+
+    chart_err_1t = build_model_error_chart(
+        points=chart_err_points_1t,
+        height=320,
+        y_max=y_ceiling_1t,
+        active_wave=current_wave_pct,
+    )
+    st.altair_chart(chart_err_1t, use_container_width=True, theme="streamlit")
 
     # Tabela Historica Expansivel
     with st.expander("📊 Ver os dados em tabela histórica"):

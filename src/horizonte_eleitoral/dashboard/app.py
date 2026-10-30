@@ -40,7 +40,6 @@ from horizonte_eleitoral.dashboard.components import (
 from horizonte_eleitoral.dashboard.replay import (
     SECOND_ROUND_LIVE_MODEL_REV,
     build_live_point,
-    build_live_replay_point,
     build_second_round_replay_point,
     generate_replay_timeline,
     generate_second_round_state_projections,
@@ -484,17 +483,7 @@ def _render_real_time_tab() -> None:
             help="Frequência de consulta à API do TSE.",
         )
 
-    with st.expander("🛠️ Simulação Manual de Ensaio (Opcional)", expanded=False):
-        sim_step = st.selectbox(
-            "Simular avanço de apuração do TSE:",
-            options=[10.0, 20.0, 35.0, 50.0, 65.0, 80.0, 95.0, 100.0],
-            index=2,
-            format_func=lambda x: f"Onda TSE: {x:.1f}% do eleitorado apurado",
-            help="Seleciona um percentual para simular a chegada de nova totalização do TSE.",
-        )
-        btn_sim = st.button("🚀 Forçar Passo Simulado")
-
-    def _poll_and_update(sim_pct: float | None = None) -> tuple[bool, str]:
+    def _poll_and_update() -> tuple[bool, str]:
         _init_dashboard_session_state()
         now_dt = datetime.now(UTC)
         check_time_str = now_dt.strftime("%H:%M:%S UTC")
@@ -545,9 +534,10 @@ def _render_real_time_tab() -> None:
             status_msg = f"Aviso de conexão com o TSE: {exc}"
 
         if tot is not None and (tot.valid_votes > 0 or tot.totalized_sections > 0):
+            has_enough = (tot.totalized_electorate / max(1, tot.total_electorate)) >= 0.02
             catalog = (
-                get_replay_catalog()
-                if (tot.totalized_electorate / max(1, tot.total_electorate)) >= 0.02
+                (get_second_round_validation_catalog() if round_num == 2 else get_replay_catalog())
+                if has_enough
                 else None
             )
             new_point = build_live_point(
@@ -619,35 +609,6 @@ def _render_real_time_tab() -> None:
                     }
                 )
                 return False, status_msg
-        elif sim_pct is not None and sim_pct > current_pct:
-            new_point = build_live_replay_point(
-                catalog=get_replay_catalog(),
-                wave=sim_pct / 100.0,
-                round_num=round_num,
-            )
-            if new_point:
-                active_points.append(new_point)
-                active_points.sort(key=lambda p: float(p.get("x", 0.0)))
-                st.session_state[state_key] = active_points
-                if round_num == 2 and ano_sel == 2026:
-                    st.session_state.second_round_points = active_points
-                    st.session_state.second_round_pct = float(new_point["x"])
-
-                st.session_state.last_status_msg = (
-                    f"Passo simulado processado! Totalização em {new_point['x']:.2f}%."
-                )
-                st.session_state.tse_log_entries.append(
-                    {
-                        "Horário": check_time_str,
-                        "Status": 200,
-                        "Apurado (%)": f"{new_point['x']:.2f}%",
-                        "Dados Novos": "Sim",
-                        "Mensagem": "Passo simulado disparado pelo operador.",
-                        "URL": "simulacao://local",
-                    }
-                )
-                return True, st.session_state.last_status_msg
-            return False, "Falha ao gerar passo simulado."
         else:
             st.session_state.last_status_msg = status_msg
             status_code = (
@@ -681,13 +642,6 @@ def _render_real_time_tab() -> None:
                 st.success(f"✅ {msg}")
             else:
                 st.info(f"ℹ️ {msg}")
-
-    if btn_sim:
-        has_sim, sim_msg = _poll_and_update(sim_pct=sim_step)
-        if has_sim:
-            st.success(f"✅ {sim_msg}")
-        else:
-            st.info(f"ℹ️ {sim_msg}")
 
     # 4. Fragmento de verificacao automatica periodica (Auto-Pull)
     @st.fragment(run_every=poll_interval if auto_poll else None)

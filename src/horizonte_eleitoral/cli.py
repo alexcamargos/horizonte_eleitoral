@@ -13,7 +13,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from horizonte_eleitoral.backtest.compare import format_comparison_table, run_v1_v2_comparison
-from horizonte_eleitoral.config import Settings, load_settings
+from horizonte_eleitoral.config import Settings, get_real_data_dir, load_settings
 from horizonte_eleitoral.historical.elasticity import MunicipalElasticityIndex
 from horizonte_eleitoral.ingestion.real_data_loader import RealDataLoader
 from horizonte_eleitoral.simulation.election_night_runner import (
@@ -46,6 +46,8 @@ def _resolve_and_load_real_catalog(
         FileNotFoundError: Se os arquivos nao forem localizados.
     """
     data_dir = Path(data_dir_str)
+    if data_dir == Path("data/real") and not data_dir.exists():
+        data_dir = get_real_data_dir()
     fallback_dir = (
         Path(__file__).resolve().parent.parent.parent / "tests" / "fixtures" / "real_replay"
     )
@@ -599,13 +601,24 @@ def main(argv: Sequence[str] | None = None) -> None:
         pct = args.simulate_2026_2t_pct
         norm_pct = pct / 100.0 if pct > 1.0 else pct
         print(f"Iniciando ensaio do 2º turno de 2026 com {norm_pct * 100:.1f}% da apuracao...")
-        sections_catalog = _resolve_and_load_real_catalog(
-            data_dir_str=args.data_dir,
-            historical_file_str=args.historical_file,
-            results_file_str=args.results_file,
-            limit_sections=args.limit_sections,
-            filter_ufs=args.ufs,
-        )
+        loader_2t = RealDataLoader()
+        parquet_2t = data_dir / "catalog_2026_2t.parquet"
+        if not parquet_2t.exists():
+            parquet_2t = get_real_data_dir() / "catalog_2026_2t.parquet"
+
+        if parquet_2t.exists() and not args.historical_file and not args.results_file:
+            print(f"Carregando catalogo real do 2º Turno de: {parquet_2t.name}...")
+            sections_catalog = loader_2t.load_catalog_parquet(
+                parquet_2t, limit_rows=args.limit_sections, filter_ufs=args.ufs
+            )
+        else:
+            sections_catalog = _resolve_and_load_real_catalog(
+                data_dir_str=args.data_dir,
+                historical_file_str=args.historical_file,
+                results_file_str=args.results_file,
+                limit_sections=args.limit_sections,
+                filter_ufs=args.ufs,
+            )
         from horizonte_eleitoral.simulation.election_night_runner import (
             simulate_2026_second_round_checkpoint,
         )

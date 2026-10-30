@@ -194,4 +194,4 @@ src/horizonte_eleitoral/
 | Alterar quantidade de sorteios Monte Carlo | `src/horizonte_eleitoral/simulation/monte_carlo.py` | `uv run pytest tests/unit/test_simulation.py` |
 | Adicionar novos campos ao payload publicado | `src/horizonte_eleitoral/publishing/models.py` | `uv run pytest tests/integration/test_publishing_atomic.py` |
 | Modificar visual ou cards do Streamlit | `src/horizonte_eleitoral/dashboard/` | `uv run pytest tests/unit/test_dashboard_components.py` |
-| Executar consultas analíticas rápidas em SQL | CLI: `--query-sql "SELECT ..."` | `uv run horizonte-eleitoral --query-sql "SELECT uf, count(*) FROM data/real/catalog_2026.parquet GROUP BY uf"` |
+| Executar consultas analíticas rápidas em SQL | CLI: `--query-sql "SELECT ..."` | `uv run horizonte-eleitoral --query-sql "SELECT uf, count(*) FROM data/final/catalog_2026.parquet GROUP BY uf"` |

@@ -18,7 +18,10 @@ coverage.xml
 htmlcov/
 
 # Local data and configuration
-data/
+data/*
+!data/final/
+!data/final/*.parquet
+!data/final/*.json
 .env
 !.env.example
 scratch/

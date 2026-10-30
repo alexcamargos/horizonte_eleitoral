@@ -7,6 +7,8 @@ from pathlib import Path
 
 import httpx
 
+from horizonte_eleitoral.config import get_raw_data_dir
+
 TSE_2018_SECTIONS_URL = (
     "https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_secao/votacao_secao_2018_BR.zip"
 )
@@ -69,7 +71,7 @@ def download_tse_2018_file(
 
 def main() -> None:
     """Ponto de entrada do script de download de dados de 2018."""
-    target = Path("data/real/votacao_secao_2018_BR.zip")
+    target = get_raw_data_dir() / "votacao_secao_2018_BR.zip"
     download_tse_2018_file(target)
 
 

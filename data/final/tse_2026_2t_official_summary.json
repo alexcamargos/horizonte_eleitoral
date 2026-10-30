@@ -1,0 +1,361 @@
+{
+  "election_id": "6258",
+  "generated_at_utc": "2026-10-26T08:45:45.560675+00:00",
+  "tse_generation_time": "25/10/2026 23:26:38",
+  "total_sections_tse": 499248,
+  "totalized_sections_tse": 499248,
+  "sections_pct_tse": 100.0,
+  "total_electorate_tse": 158745502,
+  "totalized_electorate_tse": 158745502,
+  "electorate_pct_tse": 100.0,
+  "valid_votes": 124082273,
+  "votes": {
+    "PT": 64256232,
+    "PL": 59826041
+  },
+  "official_shares": {
+    "PT": 51.7852,
+    "PL": 48.2148
+  },
+  "municipalities_downloaded": 5716,
+  "states_downloaded": 28,
+  "catalog_rows_saved": 499206,
+  "states": {
+    "AC": {
+      "total_sections": 2270,
+      "totalized_sections": 2270,
+      "total_electorate": 613715,
+      "totalized_electorate": 613715,
+      "valid_votes": 432228,
+      "votes": {
+        "PL": 287715,
+        "PT": 144513
+      },
+      "generation_time": "25/10/2026 21:26:38"
+    },
+    "AL": {
+      "total_sections": 7101,
+      "totalized_sections": 7101,
+      "total_electorate": 2442081,
+      "totalized_electorate": 2442081,
+      "valid_votes": 1896761,
+      "votes": {
+        "PL": 744140,
+        "PT": 1152621
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "AM": {
+      "total_sections": 8157,
+      "totalized_sections": 8157,
+      "total_electorate": 2798661,
+      "totalized_electorate": 2798661,
+      "valid_votes": 2121028,
+      "votes": {
+        "PL": 975245,
+        "PT": 1145783
+      },
+      "generation_time": "25/10/2026 22:26:38"
+    },
+    "AP": {
+      "total_sections": 1914,
+      "totalized_sections": 1914,
+      "total_electorate": 576910,
+      "totalized_electorate": 576910,
+      "valid_votes": 421642,
+      "votes": {
+        "PL": 198674,
+        "PT": 222968
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "BA": {
+      "total_sections": 35476,
+      "totalized_sections": 35476,
+      "total_electorate": 11312891,
+      "totalized_electorate": 11312891,
+      "valid_votes": 9094019,
+      "votes": {
+        "PL": 2608761,
+        "PT": 6485258
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "CE": {
+      "total_sections": 23765,
+      "totalized_sections": 23765,
+      "total_electorate": 6996521,
+      "totalized_electorate": 6996521,
+      "valid_votes": 5855602,
+      "votes": {
+        "PL": 1819478,
+        "PT": 4036124
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "DF": {
+      "total_sections": 6969,
+      "totalized_sections": 6969,
+      "total_electorate": 2258995,
+      "totalized_electorate": 2258995,
+      "valid_votes": 1804766,
+      "votes": {
+        "PL": 979542,
+        "PT": 825224
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "ES": {
+      "total_sections": 9844,
+      "totalized_sections": 9844,
+      "total_electorate": 2991515,
+      "totalized_electorate": 2991515,
+      "valid_votes": 2296469,
+      "votes": {
+        "PL": 1294504,
+        "PT": 1001965
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "GO": {
+      "total_sections": 15686,
+      "totalized_sections": 15686,
+      "total_electorate": 5080385,
+      "totalized_electorate": 5080385,
+      "valid_votes": 3930889,
+      "votes": {
+        "PL": 2345334,
+        "PT": 1585555
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "MA": {
+      "total_sections": 18093,
+      "totalized_sections": 18093,
+      "total_electorate": 5183049,
+      "totalized_electorate": 5183049,
+      "valid_votes": 4038202,
+      "votes": {
+        "PL": 1229971,
+        "PT": 2808231
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "MG": {
+      "total_sections": 52062,
+      "totalized_sections": 52062,
+      "total_electorate": 16372144,
+      "totalized_electorate": 16372144,
+      "valid_votes": 12592885,
+      "votes": {
+        "PL": 6241786,
+        "PT": 6351099
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "MS": {
+      "total_sections": 7106,
+      "totalized_sections": 7106,
+      "total_electorate": 2024437,
+      "totalized_electorate": 2024437,
+      "valid_votes": 1556865,
+      "votes": {
+        "PL": 927892,
+        "PT": 628973
+      },
+      "generation_time": "25/10/2026 22:26:38"
+    },
+    "MT": {
+      "total_sections": 8287,
+      "totalized_sections": 8287,
+      "total_electorate": 2637879,
+      "totalized_electorate": 2637879,
+      "valid_votes": 2045266,
+      "votes": {
+        "PL": 1351099,
+        "PT": 694167
+      },
+      "generation_time": "25/10/2026 22:26:38"
+    },
+    "PA": {
+      "total_sections": 20827,
+      "totalized_sections": 20827,
+      "total_electorate": 6262063,
+      "totalized_electorate": 6262063,
+      "valid_votes": 4890389,
+      "votes": {
+        "PL": 2199940,
+        "PT": 2690449
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "PB": {
+      "total_sections": 10712,
+      "totalized_sections": 10712,
+      "total_electorate": 3248434,
+      "totalized_electorate": 3248434,
+      "valid_votes": 2659269,
+      "votes": {
+        "PL": 865210,
+        "PT": 1794059
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "PE": {
+      "total_sections": 21418,
+      "totalized_sections": 21418,
+      "total_electorate": 7223227,
+      "totalized_electorate": 7223227,
+      "valid_votes": 5950067,
+      "votes": {
+        "PL": 1832554,
+        "PT": 4117513
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "PI": {
+      "total_sections": 10225,
+      "totalized_sections": 10225,
+      "total_electorate": 2704695,
+      "totalized_electorate": 2704695,
+      "valid_votes": 2179848,
+      "votes": {
+        "PL": 525859,
+        "PT": 1653989
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "PR": {
+      "total_sections": 27142,
+      "totalized_sections": 27142,
+      "total_electorate": 8613628,
+      "totalized_electorate": 8613628,
+      "valid_votes": 6857948,
+      "votes": {
+        "PL": 4291444,
+        "PT": 2566504
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "RJ": {
+      "total_sections": 37675,
+      "totalized_sections": 37675,
+      "total_electorate": 12857526,
+      "totalized_electorate": 12857526,
+      "valid_votes": 9734426,
+      "votes": {
+        "PL": 5169033,
+        "PT": 4565393
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "RN": {
+      "total_sections": 8115,
+      "totalized_sections": 8115,
+      "total_electorate": 2659867,
+      "totalized_electorate": 2659867,
+      "valid_votes": 2151005,
+      "votes": {
+        "PL": 737409,
+        "PT": 1413596
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "RO": {
+      "total_sections": 4698,
+      "totalized_sections": 4698,
+      "total_electorate": 1265926,
+      "totalized_electorate": 1265926,
+      "valid_votes": 968828,
+      "votes": {
+        "PL": 674382,
+        "PT": 294446
+      },
+      "generation_time": "25/10/2026 22:26:38"
+    },
+    "RR": {
+      "total_sections": 1519,
+      "totalized_sections": 1519,
+      "total_electorate": 401540,
+      "totalized_electorate": 401540,
+      "valid_votes": 303180,
+      "votes": {
+        "PL": 219675,
+        "PT": 83505
+      },
+      "generation_time": "25/10/2026 22:26:38"
+    },
+    "RS": {
+      "total_sections": 27547,
+      "totalized_sections": 27547,
+      "total_electorate": 8522318,
+      "totalized_electorate": 8522318,
+      "valid_votes": 6698930,
+      "votes": {
+        "PL": 3874378,
+        "PT": 2824552
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "SC": {
+      "total_sections": 17326,
+      "totalized_sections": 17326,
+      "total_electorate": 5734687,
+      "totalized_electorate": 5734687,
+      "valid_votes": 4638385,
+      "votes": {
+        "PL": 3220071,
+        "PT": 1418314
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "SE": {
+      "total_sections": 5923,
+      "totalized_sections": 5923,
+      "total_electorate": 1740093,
+      "totalized_electorate": 1740093,
+      "valid_votes": 1422395,
+      "votes": {
+        "PL": 433354,
+        "PT": 989041
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "SP": {
+      "total_sections": 103656,
+      "totalized_sections": 103656,
+      "total_electorate": 34123591,
+      "totalized_electorate": 34123591,
+      "valid_votes": 26258452,
+      "votes": {
+        "PL": 14139178,
+        "PT": 12119274
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "TO": {
+      "total_sections": 4384,
+      "totalized_sections": 4384,
+      "total_electorate": 1182041,
+      "totalized_electorate": 1182041,
+      "valid_votes": 910878,
+      "votes": {
+        "PL": 467916,
+        "PT": 442962
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    },
+    "ZZ": {
+      "total_sections": 1351,
+      "totalized_sections": 1351,
+      "total_electorate": 916683,
+      "totalized_electorate": 916683,
+      "valid_votes": 371651,
+      "votes": {
+        "PL": 171497,
+        "PT": 200154
+      },
+      "generation_time": "25/10/2026 23:26:38"
+    }
+  }
+}

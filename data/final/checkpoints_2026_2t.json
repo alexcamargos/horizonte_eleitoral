@@ -1,0 +1,1013 @@
+{
+  "0.0025": {
+    "t": "17:07–19:00",
+    "x": 0.25,
+    "x_sections": 0.24,
+    "apurado": {
+      "PT": 53.65,
+      "PL": 46.35
+    },
+    "projecao": null,
+    "faixa": null,
+    "win_probability": null,
+    "preliminar": {
+      "PT": 48.9,
+      "PL": 51.1
+    },
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 1.86,
+      "raw_bias_leader_pp": 1.86,
+      "raw_lead_error_pp": 3.73,
+      "model_mae_pp": null,
+      "model_bias_leader_pp": null,
+      "model_lead_error_pp": null,
+      "mae_gain_pp": null,
+      "ci_width_pp": null,
+      "ci_90_covered": null,
+      "leader_correct": null
+    },
+    "round": 2
+  },
+  "0.0100": {
+    "t": "19:10",
+    "x": 1.0,
+    "x_sections": 1.04,
+    "apurado": {
+      "PT": 67.14,
+      "PL": 32.86
+    },
+    "projecao": null,
+    "faixa": null,
+    "win_probability": null,
+    "preliminar": {
+      "PT": 50.74,
+      "PL": 49.26
+    },
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 15.35,
+      "raw_bias_leader_pp": 15.35,
+      "raw_lead_error_pp": 30.71,
+      "model_mae_pp": null,
+      "model_bias_leader_pp": null,
+      "model_lead_error_pp": null,
+      "mae_gain_pp": null,
+      "ci_width_pp": null,
+      "ci_90_covered": null,
+      "leader_correct": null
+    },
+    "round": 2
+  },
+  "0.0200": {
+    "t": "19:20",
+    "x": 2.0,
+    "x_sections": 2.11,
+    "apurado": {
+      "PT": 69.0,
+      "PL": 31.0
+    },
+    "projecao": {
+      "PT": 50.94,
+      "PL": 49.06
+    },
+    "faixa": {
+      "PT": [
+        50.45,
+        51.45
+      ],
+      "PL": [
+        48.55,
+        49.55
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 17.21,
+      "raw_bias_leader_pp": 17.21,
+      "raw_lead_error_pp": 34.43,
+      "model_mae_pp": 0.85,
+      "model_bias_leader_pp": -0.85,
+      "model_lead_error_pp": 1.69,
+      "mae_gain_pp": 16.37,
+      "ci_width_pp": 1.0,
+      "ci_90_covered": false,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "0.0500": {
+    "t": "19:30",
+    "x": 5.0,
+    "x_sections": 5.23,
+    "apurado": {
+      "PT": 58.92,
+      "PL": 41.08
+    },
+    "projecao": {
+      "PT": 51.7,
+      "PL": 48.3
+    },
+    "faixa": {
+      "PT": [
+        51.41,
+        52.01
+      ],
+      "PL": [
+        47.99,
+        48.59
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 7.13,
+      "raw_bias_leader_pp": 7.13,
+      "raw_lead_error_pp": 14.27,
+      "model_mae_pp": 0.09,
+      "model_bias_leader_pp": -0.09,
+      "model_lead_error_pp": 0.17,
+      "mae_gain_pp": 7.05,
+      "ci_width_pp": 0.6,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "0.1000": {
+    "t": "19:38",
+    "x": 10.0,
+    "x_sections": 10.33,
+    "apurado": {
+      "PT": 52.67,
+      "PL": 47.33
+    },
+    "projecao": {
+      "PT": 51.73,
+      "PL": 48.27
+    },
+    "faixa": {
+      "PT": [
+        51.54,
+        51.94
+      ],
+      "PL": [
+        48.06,
+        48.46
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 0.88,
+      "raw_bias_leader_pp": 0.88,
+      "raw_lead_error_pp": 1.77,
+      "model_mae_pp": 0.06,
+      "model_bias_leader_pp": -0.06,
+      "model_lead_error_pp": 0.11,
+      "mae_gain_pp": 0.83,
+      "ci_width_pp": 0.4,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "0.1500": {
+    "t": "19:44",
+    "x": 15.0,
+    "x_sections": 15.42,
+    "apurado": {
+      "PT": 50.57,
+      "PL": 49.43
+    },
+    "projecao": {
+      "PT": 51.73,
+      "PL": 48.27
+    },
+    "faixa": {
+      "PT": [
+        51.55,
+        51.94
+      ],
+      "PL": [
+        48.06,
+        48.45
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 1.22,
+      "raw_bias_leader_pp": -1.22,
+      "raw_lead_error_pp": 2.43,
+      "model_mae_pp": 0.06,
+      "model_bias_leader_pp": -0.06,
+      "model_lead_error_pp": 0.11,
+      "mae_gain_pp": 1.16,
+      "ci_width_pp": 0.39,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "0.2000": {
+    "t": "19:50",
+    "x": 20.0,
+    "x_sections": 20.5,
+    "apurado": {
+      "PT": 49.5,
+      "PL": 50.5
+    },
+    "projecao": {
+      "PT": 51.68,
+      "PL": 48.32
+    },
+    "faixa": {
+      "PT": [
+        51.52,
+        51.85
+      ],
+      "PL": [
+        48.15,
+        48.48
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 2.29,
+      "raw_bias_leader_pp": -2.29,
+      "raw_lead_error_pp": 4.57,
+      "model_mae_pp": 0.11,
+      "model_bias_leader_pp": -0.11,
+      "model_lead_error_pp": 0.21,
+      "mae_gain_pp": 2.18,
+      "ci_width_pp": 0.33,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "0.2500": {
+    "t": "19:55",
+    "x": 25.0,
+    "x_sections": 25.57,
+    "apurado": {
+      "PT": 48.98,
+      "PL": 51.02
+    },
+    "projecao": {
+      "PT": 51.68,
+      "PL": 48.32
+    },
+    "faixa": {
+      "PT": [
+        51.56,
+        51.82
+      ],
+      "PL": [
+        48.18,
+        48.44
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 2.81,
+      "raw_bias_leader_pp": -2.81,
+      "raw_lead_error_pp": 5.61,
+      "model_mae_pp": 0.11,
+      "model_bias_leader_pp": -0.11,
+      "model_lead_error_pp": 0.21,
+      "mae_gain_pp": 2.7,
+      "ci_width_pp": 0.26,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "0.3000": {
+    "t": "20:00",
+    "x": 30.0,
+    "x_sections": 30.65,
+    "apurado": {
+      "PT": 49.15,
+      "PL": 50.85
+    },
+    "projecao": {
+      "PT": 51.7,
+      "PL": 48.3
+    },
+    "faixa": {
+      "PT": [
+        51.58,
+        51.82
+      ],
+      "PL": [
+        48.18,
+        48.42
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 2.64,
+      "raw_bias_leader_pp": -2.64,
+      "raw_lead_error_pp": 5.27,
+      "model_mae_pp": 0.09,
+      "model_bias_leader_pp": -0.09,
+      "model_lead_error_pp": 0.17,
+      "mae_gain_pp": 2.55,
+      "ci_width_pp": 0.24,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "0.3500": {
+    "t": "20:04",
+    "x": 35.0,
+    "x_sections": 35.68,
+    "apurado": {
+      "PT": 49.35,
+      "PL": 50.65
+    },
+    "projecao": {
+      "PT": 51.7,
+      "PL": 48.3
+    },
+    "faixa": {
+      "PT": [
+        51.59,
+        51.82
+      ],
+      "PL": [
+        48.18,
+        48.41
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 2.44,
+      "raw_bias_leader_pp": -2.44,
+      "raw_lead_error_pp": 4.87,
+      "model_mae_pp": 0.09,
+      "model_bias_leader_pp": -0.09,
+      "model_lead_error_pp": 0.17,
+      "mae_gain_pp": 2.35,
+      "ci_width_pp": 0.23,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "0.4000": {
+    "t": "20:09",
+    "x": 40.0,
+    "x_sections": 40.72,
+    "apurado": {
+      "PT": 49.48,
+      "PL": 50.52
+    },
+    "projecao": {
+      "PT": 51.71,
+      "PL": 48.29
+    },
+    "faixa": {
+      "PT": [
+        51.61,
+        51.82
+      ],
+      "PL": [
+        48.18,
+        48.39
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 2.31,
+      "raw_bias_leader_pp": -2.31,
+      "raw_lead_error_pp": 4.61,
+      "model_mae_pp": 0.08,
+      "model_bias_leader_pp": -0.08,
+      "model_lead_error_pp": 0.15,
+      "mae_gain_pp": 2.23,
+      "ci_width_pp": 0.21,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "0.4500": {
+    "t": "20:13",
+    "x": 45.0,
+    "x_sections": 45.75,
+    "apurado": {
+      "PT": 49.6,
+      "PL": 50.4
+    },
+    "projecao": {
+      "PT": 51.72,
+      "PL": 48.28
+    },
+    "faixa": {
+      "PT": [
+        51.62,
+        51.82
+      ],
+      "PL": [
+        48.18,
+        48.38
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 2.19,
+      "raw_bias_leader_pp": -2.19,
+      "raw_lead_error_pp": 4.37,
+      "model_mae_pp": 0.07,
+      "model_bias_leader_pp": -0.07,
+      "model_lead_error_pp": 0.13,
+      "mae_gain_pp": 2.12,
+      "ci_width_pp": 0.2,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "0.5000": {
+    "t": "20:17",
+    "x": 50.0,
+    "x_sections": 50.77,
+    "apurado": {
+      "PT": 49.86,
+      "PL": 50.14
+    },
+    "projecao": {
+      "PT": 51.73,
+      "PL": 48.27
+    },
+    "faixa": {
+      "PT": [
+        51.66,
+        51.79
+      ],
+      "PL": [
+        48.21,
+        48.34
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 1.93,
+      "raw_bias_leader_pp": -1.93,
+      "raw_lead_error_pp": 3.85,
+      "model_mae_pp": 0.06,
+      "model_bias_leader_pp": -0.06,
+      "model_lead_error_pp": 0.11,
+      "mae_gain_pp": 1.87,
+      "ci_width_pp": 0.13,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "0.5500": {
+    "t": "20:21",
+    "x": 55.0,
+    "x_sections": 55.76,
+    "apurado": {
+      "PT": 50.14,
+      "PL": 49.86
+    },
+    "projecao": {
+      "PT": 51.74,
+      "PL": 48.26
+    },
+    "faixa": {
+      "PT": [
+        51.68,
+        51.8
+      ],
+      "PL": [
+        48.2,
+        48.32
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 1.65,
+      "raw_bias_leader_pp": -1.65,
+      "raw_lead_error_pp": 3.29,
+      "model_mae_pp": 0.05,
+      "model_bias_leader_pp": -0.05,
+      "model_lead_error_pp": 0.09,
+      "mae_gain_pp": 1.6,
+      "ci_width_pp": 0.12,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "0.6000": {
+    "t": "20:25",
+    "x": 60.0,
+    "x_sections": 60.76,
+    "apurado": {
+      "PT": 50.38,
+      "PL": 49.62
+    },
+    "projecao": {
+      "PT": 51.75,
+      "PL": 48.25
+    },
+    "faixa": {
+      "PT": [
+        51.69,
+        51.8
+      ],
+      "PL": [
+        48.2,
+        48.31
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 1.41,
+      "raw_bias_leader_pp": -1.41,
+      "raw_lead_error_pp": 2.81,
+      "model_mae_pp": 0.04,
+      "model_bias_leader_pp": -0.04,
+      "model_lead_error_pp": 0.07,
+      "mae_gain_pp": 1.37,
+      "ci_width_pp": 0.11,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "0.6500": {
+    "t": "20:29",
+    "x": 65.0,
+    "x_sections": 65.73,
+    "apurado": {
+      "PT": 50.59,
+      "PL": 49.41
+    },
+    "projecao": {
+      "PT": 51.75,
+      "PL": 48.25
+    },
+    "faixa": {
+      "PT": [
+        51.71,
+        51.8
+      ],
+      "PL": [
+        48.2,
+        48.29
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 1.2,
+      "raw_bias_leader_pp": -1.2,
+      "raw_lead_error_pp": 2.39,
+      "model_mae_pp": 0.04,
+      "model_bias_leader_pp": -0.04,
+      "model_lead_error_pp": 0.07,
+      "mae_gain_pp": 1.16,
+      "ci_width_pp": 0.09,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "0.7000": {
+    "t": "20:33",
+    "x": 70.0,
+    "x_sections": 70.7,
+    "apurado": {
+      "PT": 50.78,
+      "PL": 49.22
+    },
+    "projecao": {
+      "PT": 51.76,
+      "PL": 48.24
+    },
+    "faixa": {
+      "PT": [
+        51.72,
+        51.8
+      ],
+      "PL": [
+        48.2,
+        48.28
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 1.01,
+      "raw_bias_leader_pp": -1.01,
+      "raw_lead_error_pp": 2.01,
+      "model_mae_pp": 0.03,
+      "model_bias_leader_pp": -0.03,
+      "model_lead_error_pp": 0.05,
+      "mae_gain_pp": 0.98,
+      "ci_width_pp": 0.08,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "0.7500": {
+    "t": "20:38",
+    "x": 75.0,
+    "x_sections": 75.66,
+    "apurado": {
+      "PT": 50.93,
+      "PL": 49.07
+    },
+    "projecao": {
+      "PT": 51.76,
+      "PL": 48.24
+    },
+    "faixa": {
+      "PT": [
+        51.73,
+        51.79
+      ],
+      "PL": [
+        48.21,
+        48.27
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 0.86,
+      "raw_bias_leader_pp": -0.86,
+      "raw_lead_error_pp": 1.71,
+      "model_mae_pp": 0.03,
+      "model_bias_leader_pp": -0.03,
+      "model_lead_error_pp": 0.05,
+      "mae_gain_pp": 0.83,
+      "ci_width_pp": 0.06,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "0.8000": {
+    "t": "20:42",
+    "x": 80.0,
+    "x_sections": 80.6,
+    "apurado": {
+      "PT": 51.07,
+      "PL": 48.93
+    },
+    "projecao": {
+      "PT": 51.77,
+      "PL": 48.23
+    },
+    "faixa": {
+      "PT": [
+        51.74,
+        51.79
+      ],
+      "PL": [
+        48.21,
+        48.26
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 0.72,
+      "raw_bias_leader_pp": -0.72,
+      "raw_lead_error_pp": 1.43,
+      "model_mae_pp": 0.02,
+      "model_bias_leader_pp": -0.02,
+      "model_lead_error_pp": 0.03,
+      "mae_gain_pp": 0.7,
+      "ci_width_pp": 0.05,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "0.8500": {
+    "t": "20:47",
+    "x": 85.0,
+    "x_sections": 85.52,
+    "apurado": {
+      "PT": 51.22,
+      "PL": 48.78
+    },
+    "projecao": {
+      "PT": 51.77,
+      "PL": 48.23
+    },
+    "faixa": {
+      "PT": [
+        51.75,
+        51.79
+      ],
+      "PL": [
+        48.21,
+        48.25
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 0.57,
+      "raw_bias_leader_pp": -0.57,
+      "raw_lead_error_pp": 1.13,
+      "model_mae_pp": 0.02,
+      "model_bias_leader_pp": -0.02,
+      "model_lead_error_pp": 0.03,
+      "mae_gain_pp": 0.55,
+      "ci_width_pp": 0.04,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "0.9000": {
+    "t": "20:52",
+    "x": 90.0,
+    "x_sections": 90.42,
+    "apurado": {
+      "PT": 51.34,
+      "PL": 48.66
+    },
+    "projecao": {
+      "PT": 51.77,
+      "PL": 48.23
+    },
+    "faixa": {
+      "PT": [
+        51.76,
+        51.79
+      ],
+      "PL": [
+        48.21,
+        48.24
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 0.45,
+      "raw_bias_leader_pp": -0.45,
+      "raw_lead_error_pp": 0.89,
+      "model_mae_pp": 0.02,
+      "model_bias_leader_pp": -0.02,
+      "model_lead_error_pp": 0.03,
+      "mae_gain_pp": 0.43,
+      "ci_width_pp": 0.03,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "0.9500": {
+    "t": "20:59",
+    "x": 95.0,
+    "x_sections": 95.27,
+    "apurado": {
+      "PT": 51.48,
+      "PL": 48.52
+    },
+    "projecao": {
+      "PT": 51.78,
+      "PL": 48.22
+    },
+    "faixa": {
+      "PT": [
+        51.77,
+        51.78
+      ],
+      "PL": [
+        48.22,
+        48.23
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 0.31,
+      "raw_bias_leader_pp": -0.31,
+      "raw_lead_error_pp": 0.61,
+      "model_mae_pp": 0.01,
+      "model_bias_leader_pp": -0.01,
+      "model_lead_error_pp": 0.01,
+      "mae_gain_pp": 0.3,
+      "ci_width_pp": 0.01,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  },
+  "1.0000": {
+    "t": "23:21",
+    "x": 100.0,
+    "x_sections": 100.0,
+    "apurado": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "projecao": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "faixa": {
+      "PT": [
+        51.79,
+        51.79
+      ],
+      "PL": [
+        48.21,
+        48.21
+      ]
+    },
+    "win_probability": {
+      "PT": 1.0,
+      "PL": 0.0
+    },
+    "preliminar": null,
+    "final_oficial": {
+      "PT": 51.79,
+      "PL": 48.21
+    },
+    "metrics": {
+      "raw_mae_pp": 0.0,
+      "raw_bias_leader_pp": 0.0,
+      "raw_lead_error_pp": 0.01,
+      "model_mae_pp": 0.0,
+      "model_bias_leader_pp": 0.0,
+      "model_lead_error_pp": 0.01,
+      "mae_gain_pp": 0.0,
+      "ci_width_pp": 0.0,
+      "ci_90_covered": true,
+      "leader_correct": true
+    },
+    "round": 2
+  }
+}

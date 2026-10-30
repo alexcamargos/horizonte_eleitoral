@@ -168,16 +168,85 @@ def get_project_root() -> Path:
     return Path.cwd()
 
 
-def get_real_data_dir() -> Path:
-    """Retorna o caminho absoluto do diretorio de dados reais (data/real).
+def get_data_dir() -> Path:
+    """Retorna o caminho absoluto do diretorio raiz de dados (data).
 
     Args:
         None.
 
     Returns:
-        Path absoluto para o diretorio data/real do repositorio.
+        Path absoluto para o diretorio data do repositorio.
 
     Raises:
         None.
     """
-    return get_project_root() / "data" / "real"
+    return get_project_root() / "data"
+
+
+def get_raw_data_dir() -> Path:
+    """Retorna o caminho absoluto do diretorio de dados brutos (data/raw).
+
+    Args:
+        None.
+
+    Returns:
+        Path absoluto para o diretorio data/raw do repositorio.
+
+    Raises:
+        None.
+    """
+    return get_data_dir() / "raw"
+
+
+def get_norm_data_dir() -> Path:
+    """Retorna o caminho absoluto do diretorio de dados normalizados (data/norm).
+
+    Args:
+        None.
+
+    Returns:
+        Path absoluto para o diretorio data/norm do repositorio.
+
+    Raises:
+        None.
+    """
+    return get_data_dir() / "norm"
+
+
+def get_final_data_dir() -> Path:
+    """Retorna o caminho absoluto do diretorio de dados finais (data/final).
+
+    Args:
+        None.
+
+    Returns:
+        Path absoluto para o diretorio data/final do repositorio.
+
+    Raises:
+        None.
+    """
+    return get_data_dir() / "final"
+
+
+def get_real_data_dir() -> Path:
+    """Retorna o caminho absoluto do diretorio de dados finais analiticos.
+
+    Prioriza data/final e fornece compatibilidade retroativa caso data/real
+    ainda exista em algum ambiente legado.
+
+    Args:
+        None.
+
+    Returns:
+        Path absoluto para o diretorio data/final ou data/real do repositorio.
+
+    Raises:
+        None.
+    """
+    final_dir = get_final_data_dir()
+    if final_dir.exists():
+        return final_dir
+    legacy_dir = get_project_root() / "data" / "real"
+    if legacy_dir.exists():
+        return legacy_dir
+    return final_dir

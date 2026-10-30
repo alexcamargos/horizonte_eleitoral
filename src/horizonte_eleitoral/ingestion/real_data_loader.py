@@ -1387,6 +1387,11 @@ class RealDataLoader:
             formatted_sql = re.sub(r"(?i)\bcatalog\b", f"'{norm_path}'", formatted_sql)
 
         try:
-            return duckdb.query(formatted_sql)
+            rel = duckdb.query(formatted_sql)
+            if rel is None:
+                raise ValidationError("Consulta DuckDB nao retornou uma relacao valida.")
+            return rel
+        except ValidationError:
+            raise
         except Exception as error:
             raise ValidationError(f"Erro na execucao da consulta SQL no DuckDB: {error}") from error

@@ -48,8 +48,23 @@ def test_build_second_round_chart_empty_and_populated() -> None:
         },
     ]
 
-    chart_pop = build_second_round_chart(points=sample_points)
+    # Validacao com projecao estendida (padrao)
+    chart_pop = build_second_round_chart(
+        points=sample_points,
+        active_wave=20.0,
+        extend_to_end=True,
+    )
     assert chart_pop is not None
+    assert isinstance(chart_pop, (alt.Chart, alt.LayerChart))
+
+    # Validacao sem projecao estendida (serie completa)
+    chart_full = build_second_round_chart(
+        points=sample_points,
+        active_wave=20.0,
+        extend_to_end=False,
+    )
+    assert chart_full is not None
+    assert isinstance(chart_full, (alt.Chart, alt.LayerChart))
 
 
 def test_build_second_round_error_chart_empty_and_populated() -> None:

@@ -750,17 +750,22 @@ def build_second_round_chart(
     points: list[dict[str, Any]],
     height: int = 380,
     final_result: dict[str, float] | None = None,
+    active_wave: float | None = None,
+    extend_to_end: bool = True,
 ) -> alt.LayerChart | alt.Chart:
     """Gera o grafico visual em Altair para o 2º Turno Majoritario (PT vs PL).
 
     Painel unificado de disputa majoritaria com linha de maioria absoluta (50%),
-    faixas de credibilidade de 90%, linhas de apuracao oficial e de projecao final,
+    faixas de credibilidade de 90%, linhas de apuracao oficial do TSE e de projecao final,
+    projecao estendida ate 100% com marcadores terminais e intervalos de confianca,
     alem de linhas de referencia opcionais com o gabarito oficial consolidado no TSE.
 
     Args:
         points: Lista cronologica de pontos de apuracao e projecao do 2º turno.
         height: Altura em pixels do grafico.
         final_result: Resultado final oficial opcional {'PT': ..., 'PL': ...} para auditoria.
+        active_wave: Percentual apurado da onda ativa (ex.: 2.0) para cursor ou projecao.
+        extend_to_end: Se True, estende a projecao estimada do marco ativo ate 100% da apuracao.
 
     Returns:
         Instancia de alt.Chart com a visualizacao da disputa do segundo turno.
@@ -801,7 +806,83 @@ def build_second_round_chart(
         range=[COLOR_MAP["PT"], COLOR_MAP["PL"]],
     )
 
-    base = alt.Chart(df_2t).encode(
+    # Identificacao do marco ativo e ponto de referencia da projecao
+    latest_point = points[-1]
+    current_wave = (
+        float(active_wave) if active_wave is not None else float(latest_point.get("x", 0.0))
+    )
+
+    ref_point = latest_point
+    if active_wave is not None:
+        matched = [p for p in points if abs(float(p.get("x", 0.0)) - active_wave) < 0.15]
+        if matched:
+            ref_point = matched[0]
+
+    proj_map = ref_point.get("projecao") or ref_point.get("preliminar") or {}
+    faixa_map = ref_point.get("faixa") or {}
+
+    # Calculo dinamico de escala vertical para evitar clipping de vies inicial
+    y_min_2t = 35.0
+    y_max_2t = 65.0
+    if not df_2t.empty:
+        obs_vals = [v for v in df_2t["apurado"].dropna() if isinstance(v, (int, float))]
+        q05_vals = [v for v in df_2t["q05"].dropna() if isinstance(v, (int, float))]
+        q95_vals = [v for v in df_2t["q95"].dropna() if isinstance(v, (int, float))]
+        if obs_vals or q05_vals:
+            lowest = min(obs_vals + q05_vals)
+            y_min_2t = min(35.0, float(lowest) - 2.0)
+        if obs_vals or q95_vals:
+            highest = max(obs_vals + q95_vals)
+            y_max_2t = max(65.0, float(highest) + 2.0)
+
+    y_scale_2t = alt.Scale(domain=[y_min_2t, y_max_2t], clamp=True)
+
+    # Faixas de 90% de credibilidade historicas observadas
+    df_ci = df_2t[df_2t["q05"].notna() & df_2t["q95"].notna()]
+    band = (
+        alt.Chart(df_ci)
+        .mark_area(opacity=0.25)
+        .encode(
+            x="x:Q",
+            y=alt.Y("q05:Q", scale=y_scale_2t),
+            y2="q95:Q",
+            color=alt.Color("bloco:N", scale=color_scale, legend=None),
+        )
+    )
+
+    # Linha tracejada de projecao final do HORIZON-MRP nos marcos apurados
+    df_proj = df_2t[df_2t["projecao"].notna()]
+    line_proj = (
+        alt.Chart(df_proj)
+        .mark_line(strokeDash=[4, 4], strokeWidth=2.6)
+        .encode(
+            x="x:Q",
+            y=alt.Y("projecao:Q", scale=y_scale_2t),
+            color=alt.Color("bloco:N", scale=color_scale, legend=None),
+        )
+    )
+
+    points_proj = (
+        alt.Chart(df_proj)
+        .mark_circle(size=45, opacity=0.9)
+        .encode(
+            x="x:Q",
+            y=alt.Y("projecao:Q", scale=y_scale_2t),
+            color=alt.Color("bloco:N", scale=color_scale, legend=None),
+            tooltip=[
+                alt.Tooltip("t:N", title="Horário"),
+                alt.Tooltip("x:Q", title="% Eleitorado Apurado no Marco", format=".2f"),
+                alt.Tooltip("candidato:N", title="Candidatura"),
+                alt.Tooltip("projecao:Q", title="% Projeção Final", format=".2f"),
+                alt.Tooltip("q05:Q", title="IC 90% Inferior", format=".2f"),
+                alt.Tooltip("q95:Q", title="IC 90% Superior", format=".2f"),
+            ],
+        )
+    )
+
+    # Linha solida de apuracao oficial observada
+    df_obs = df_2t[df_2t["apurado"].notna()]
+    base_obs = alt.Chart(df_obs).encode(
         x=alt.X(
             "x:Q",
             title="% do eleitorado nas seções totalizadas pelo TSE",
@@ -818,39 +899,18 @@ def build_second_round_chart(
         ),
     )
 
-    # Faixas de 90% de credibilidade
-    df_ci = df_2t[df_2t["q05"].notna() & df_2t["q95"].notna()]
-    band = (
-        alt.Chart(df_ci)
-        .mark_area(opacity=0.25)
-        .encode(
-            x="x:Q",
-            y=alt.Y("q05:Q"),
-            y2="q95:Q",
-            color=alt.Color("bloco:N", scale=color_scale, legend=None),
-        )
-    )
-
-    # Linha pontilhada de projecao final do HORIZON-MRP
-    df_proj = df_2t[df_2t["projecao"].notna()]
-    line_proj = (
-        alt.Chart(df_proj)
-        .mark_line(strokeDash=[4, 4], strokeWidth=2.6)
-        .encode(
-            x="x:Q",
-            y=alt.Y("projecao:Q"),
-            color=alt.Color("bloco:N", scale=color_scale, legend=None),
-        )
-    )
-
-    # Linha solida de apuracao oficial observada
-    line_obs = base.mark_line(strokeWidth=2.8).encode(
+    line_obs = base_obs.mark_line(strokeWidth=2.8).encode(
         y=alt.Y(
             "apurado:Q",
             title="% dos votos válidos (2º Turno)",
-            scale=alt.Scale(domain=[35, 65], clamp=True),
+            scale=y_scale_2t,
             axis=alt.Axis(format=".0f", tickCount=7),
         ),
+        color=alt.Color("bloco:N", scale=color_scale, legend=None),
+    )
+
+    points_obs = base_obs.mark_circle(size=35, opacity=0.85).encode(
+        y=alt.Y("apurado:Q", scale=y_scale_2t),
         color=alt.Color("bloco:N", scale=color_scale, legend=None),
         tooltip=[
             alt.Tooltip("t:N", title="Horário"),
@@ -867,15 +927,170 @@ def build_second_round_chart(
     rule_50 = (
         alt.Chart(pd.DataFrame({"y": [50.0]}))
         .mark_rule(color="#94a3b8", strokeDash=[3, 3], strokeWidth=1.5)
-        .encode(y="y:Q")
+        .encode(y=alt.Y("y:Q", scale=y_scale_2t))
     )
     text_50 = (
         alt.Chart(pd.DataFrame({"x": [98.0], "y": [50.8], "text": ["50% (Maioria Absoluta)"]}))
         .mark_text(align="right", fontSize=11, fontWeight="bold", color="#94a3b8")
-        .encode(x="x:Q", y="y:Q", text="text:N")
+        .encode(x="x:Q", y=alt.Y("y:Q", scale=y_scale_2t), text="text:N")
     )
 
-    layers: list[alt.Chart] = [band, line_proj, line_obs, rule_50, text_50]
+    layers: list[alt.Chart] = [
+        band,
+        line_proj,
+        points_proj,
+        line_obs,
+        points_obs,
+        rule_50,
+        text_50,
+    ]
+
+    # Projecao Estendida para o Final da Apuracao (100%)
+    if extend_to_end and current_wave < 100.0 and proj_map:
+        fwd_rows: list[dict[str, Any]] = []
+        for bloco in ("PT", "PL"):
+            if bloco in proj_map and proj_map[bloco] is not None:
+                p_val = float(proj_map[bloco])
+                q05_val = (
+                    float(faixa_map[bloco][0])
+                    if (faixa_map and bloco in faixa_map and faixa_map[bloco])
+                    else p_val
+                )
+                q95_val = (
+                    float(faixa_map[bloco][1])
+                    if (faixa_map and bloco in faixa_map and faixa_map[bloco])
+                    else p_val
+                )
+                cand = CANDIDATE_NAMES.get(bloco, bloco)
+                fwd_rows.extend(
+                    [
+                        {
+                            "x": current_wave,
+                            "bloco": bloco,
+                            "candidato": cand,
+                            "projecao": p_val,
+                            "q05": q05_val,
+                            "q95": q95_val,
+                        },
+                        {
+                            "x": 100.0,
+                            "bloco": bloco,
+                            "candidato": cand,
+                            "projecao": p_val,
+                            "q05": q05_val,
+                            "q95": q95_val,
+                        },
+                    ]
+                )
+
+        if fwd_rows:
+            df_fwd = pd.DataFrame(fwd_rows)
+            band_fwd = (
+                alt.Chart(df_fwd)
+                .mark_area(opacity=0.18)
+                .encode(
+                    x="x:Q",
+                    y=alt.Y("q05:Q", scale=y_scale_2t),
+                    y2="q95:Q",
+                    color=alt.Color("bloco:N", scale=color_scale, legend=None),
+                )
+            )
+            line_fwd = (
+                alt.Chart(df_fwd)
+                .mark_line(strokeDash=[3, 3], strokeWidth=2.2, opacity=0.9)
+                .encode(
+                    x="x:Q",
+                    y=alt.Y("projecao:Q", scale=y_scale_2t),
+                    color=alt.Color("bloco:N", scale=color_scale, legend=None),
+                )
+            )
+            layers.extend([band_fwd, line_fwd])
+
+    # Rotulos e Marcadores Terminais em 100%
+    if proj_map and ("PT" in proj_map or "PL" in proj_map):
+        term_rows: list[dict[str, Any]] = []
+        pt_p = float(proj_map.get("PT", 0.0))
+        pl_p = float(proj_map.get("PL", 0.0))
+        pt_offset = 1.2 if pt_p >= pl_p else -1.2
+        pl_offset = -1.2 if pt_p >= pl_p else 1.2
+
+        for bloco in ("PT", "PL"):
+            if bloco in proj_map and proj_map[bloco] is not None:
+                p_val = float(proj_map[bloco])
+                cand = CANDIDATE_NAMES.get(bloco, bloco)
+                offset = pt_offset if bloco == "PT" else pl_offset
+                q05_str = (
+                    f"{faixa_map[bloco][0]:.2f}%" if (faixa_map and bloco in faixa_map) else ""
+                )
+                q95_str = (
+                    f"{faixa_map[bloco][1]:.2f}%" if (faixa_map and bloco in faixa_map) else ""
+                )
+                ic_suffix = f" [{q05_str} - {q95_str}]".replace(".", ",") if q05_str else ""
+                label_text = f"Projeção {cand}: {p_val:.2f}%{ic_suffix}".replace(".", ",")
+                term_rows.append(
+                    {
+                        "x": 100.0,
+                        "bloco": bloco,
+                        "candidato": cand,
+                        "projecao": p_val,
+                        "label_y": p_val + offset,
+                        "label": label_text,
+                        "q05": (
+                            float(faixa_map[bloco][0])
+                            if (faixa_map and bloco in faixa_map)
+                            else p_val
+                        ),
+                        "q95": (
+                            float(faixa_map[bloco][1])
+                            if (faixa_map and bloco in faixa_map)
+                            else p_val
+                        ),
+                        "origem": f"Marco {current_wave:.1f}%",
+                    }
+                )
+
+        if term_rows:
+            df_term = pd.DataFrame(term_rows)
+            points_term = (
+                alt.Chart(df_term)
+                .mark_circle(size=80, stroke="#ffffff", strokeWidth=1.5)
+                .encode(
+                    x="x:Q",
+                    y=alt.Y("projecao:Q", scale=y_scale_2t),
+                    color=alt.Color("bloco:N", scale=color_scale, legend=None),
+                    tooltip=[
+                        alt.Tooltip("origem:N", title="Projeção Calculada no Marco"),
+                        alt.Tooltip("candidato:N", title="Candidatura"),
+                        alt.Tooltip(
+                            "projecao:Q",
+                            title="% Projeção Final (100% Apuração)",
+                            format=".2f",
+                        ),
+                        alt.Tooltip("q05:Q", title="IC 90% Inferior", format=".2f"),
+                        alt.Tooltip("q95:Q", title="IC 90% Superior", format=".2f"),
+                    ],
+                )
+            )
+            text_term = (
+                alt.Chart(df_term)
+                .mark_text(align="right", dx=-10, fontSize=11, fontWeight="bold")
+                .encode(
+                    x="x:Q",
+                    y=alt.Y("label_y:Q", scale=y_scale_2t),
+                    text="label:N",
+                    color=alt.Color("bloco:N", scale=color_scale, legend=None),
+                )
+            )
+            layers.extend([points_term, text_term])
+
+    # Cursor vertical ativo no marco selecionado se nao estendido
+    if active_wave is not None and not extend_to_end:
+        rule_act = (
+            alt.Chart(pd.DataFrame({"x": [current_wave]}))
+            .mark_rule(color="#f59e0b", strokeDash=[2, 2], strokeWidth=1.5)
+            .encode(x="x:Q")
+        )
+        layers.append(rule_act)
 
     if final_result and "PT" in final_result and "PL" in final_result:
         f_pt = float(final_result["PT"])
@@ -902,7 +1117,7 @@ def build_second_round_chart(
             alt.Chart(final_df)
             .mark_rule(strokeDash=[2, 4], strokeWidth=1.3, opacity=0.6)
             .encode(
-                y="y:Q",
+                y=alt.Y("y:Q", scale=y_scale_2t),
                 color=alt.Color("bloco:N", scale=color_scale, legend=None),
             )
         )
@@ -911,7 +1126,7 @@ def build_second_round_chart(
             .mark_text(align="right", fontSize=10, fontWeight="bold", opacity=0.85)
             .encode(
                 x="x:Q",
-                y="label_y:Q",
+                y=alt.Y("label_y:Q", scale=y_scale_2t),
                 text="label:N",
                 color=alt.Color("bloco:N", scale=color_scale, legend=None),
             )
